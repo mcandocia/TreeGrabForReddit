@@ -29,7 +29,7 @@ class Navigator(object):
             self.comments = thread.comments.list()
             #remove non-root elements of comments
             idx = 0
-            while idx < len(self.comments):
+            while idx < len(self.comments) and idx < self.opts.pattern[0]:
                 if isinstance(self.comments[idx], MoreComments):
                     new_comments = self.expand_if_forest(self.comments.pop(idx).comments())
                     self.comments = inject(self.comments, new_comments, idx)
@@ -156,7 +156,7 @@ class Navigator(object):
         comment = self.get_comment()
         comment_id = comment.id
         if comment_id==u'_':
-            print self.position
+            #print self.position
             self.check_morecomments()
         else:
             self.data['comments'][comment_id].update({'nreplies':
@@ -260,7 +260,7 @@ class Navigator(object):
     def get_comment_data(self):
         """adds data from a comment to self.data['comments']"""
         comment = self.get_comment()
-        print self.position
+        #print self.position
         if isinstance(comment, MoreComments):
             self.direction = 'U'
             self.move_one()

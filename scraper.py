@@ -152,9 +152,9 @@ class options(object):
         self.name = args.name
         if not hasattr(self, 'pattern'):
             if args.pattern[0] == 'D':
-                self.pattern = args.pattern[1:]
+                self.pattern = [int(p) for p in args.pattern[1:]]
             else:
-                self.pattern = args.pattern
+                self.pattern = [int(p) for p in args.pattern]
         #add to subreddit list
         if args.subreddits is not None:
             self.subreddits=args.subreddits

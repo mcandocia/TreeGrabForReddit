@@ -1,6 +1,7 @@
 from datetime import datetime
 import time
 import sys
+from psycopg2 import InternalError, ProgrammingError
 
 #update this over time with appropriate errors; monitor while it's relaxed
 def retry_if_broken_connection(f):
@@ -8,6 +9,9 @@ def retry_if_broken_connection(f):
         while True:
             try:
                 return f(*args, **kwargs)
+            except InternalError, ProgrammingError:
+                print sys.exc_info()
+                raise
             except:
                 print sys.exc_info()
                 print 'sleeping...'
