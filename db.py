@@ -211,7 +211,7 @@ class Database(object):
         cols = data.keys()
         values = [data[key] for key in cols]
         statement = ('UPDATE %s' % self.schema) + '.users SET ' + make_update_template(values) + \
-                    ' WHERE id=%s' % data['id']
+                    ' WHERE id=\'%s\'' % data['id']
         self.execute(statement, make_update_data(cols, values))
 
 
@@ -227,7 +227,7 @@ class Database(object):
         cols = data.keys()
         values = [data[key] for key in cols]
         statement = ('UPDATE %s' % self.schema) + '.threads SET ' + make_update_template(values) + \
-                    ' WHERE id=%s' % data['id']
+                    ' WHERE id=\'%s\'' % data['id']
         self.execute(statement, make_update_data(cols, values))
 
 
@@ -242,9 +242,9 @@ class Database(object):
     def update_comment(self, data):
         cols = data.keys()
         values = [data[key] for key in cols]
+
         statement = ('UPDATE %s' % self.schema) + '.comments SET ' + make_update_template(values)+ \
-                    ' WHERE id=%s' % data['id']
-        print self.cur.mogrify(statement, values)
+                    ' WHERE id=\'%s\'' % data['id']
         self.execute(statement, make_update_data(cols, values))
 
     def commit(self):
@@ -272,7 +272,7 @@ class Database(object):
         self.commit()
 
 def make_update_data(cols, values):
-    d1 =  ((col, val) for col, val in zip(cols, values) if val is not None)
+    d1 =  ((AsIs(col), val) for col, val in zip(cols, values) if val is not None)
     merged = tuple(itertools.chain.from_iterable(d1))
     return merged
 

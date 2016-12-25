@@ -32,8 +32,8 @@ def write_user(data, opts):
             else:
                 db.update_user(data)
     except:
-        #print sys.exc_info()
-        #print data
+        print sys.exc_info()
+        print data
         db.insert_user(data)
     db.commit()
     return True
@@ -45,7 +45,10 @@ def write_thread(data, opts):
     try:
         db.execute('SELECT max(timestamp) FROM %s.threads WHERE id=%%s' % db.schema, [data['id']])
         last_time = db.fetchall()[0][0]
-        #last_time = None will trigger error
+        if last_time is None:
+            db.insert_thread(data)
+            db.commit()
+            return True
         fails_time = (data['timestamp'] - last_time).seconds*seconds_to_days < opts.thread_delay
         if opts.thread_delay == -1 or fails_time:
             return False
@@ -57,7 +60,8 @@ def write_thread(data, opts):
             else:
                 return False
     except:
-        #print sys.exc_info()
+        print sys.exc_info()
+        print data
         db.insert_thread(data)
     db.commit()
     return True
@@ -72,7 +76,10 @@ def write_comment(data, opts):
         db.execute(query, [data['id']])
         #print 'executed query'
         last_time = db.fetchall()[0][0]
-        #last_time = None will trigger error
+        if last_time is None:
+            db.insert_comment(data)
+            db.commit()
+            return True
         meets_time_cutoff = (data['timestamp'] - last_time).seconds*seconds_to_days < \
                             opts.thread_delay
         updateable = opts.thread_delay <> -1
@@ -81,14 +88,13 @@ def write_comment(data, opts):
            ((not thread_mode) and meets_time_cutoff and updateable):
             return False
         else:
-            can_update = True
             if history_mode:
                 db.insert_comment(data)
             else:
                 db.update_comment(data)
-    except:
-        #print data
-        #print sys.exc_info()
+    except TypeError:
+        print data
+        print sys.exc_info()
         db.insert_comment(data)
     db.commit()
     return True
