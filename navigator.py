@@ -307,6 +307,7 @@ class Navigator(object):
                     self.author_data['%%' + str(author.name)] = pod.get_user_data(author, self.opts)
                     
         #write thread data
+        print ''
         print 'writing thread data'
         self.data['thread'][self.thread.id].update({'comments_deleted':self.deleted_comments,
                                                     'comments_navigated':self.traversed_comments})
