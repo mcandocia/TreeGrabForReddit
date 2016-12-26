@@ -3,6 +3,7 @@ import datetime
 from praw.models import MoreComments
 from praw.models.comment_forest import CommentForest
 import sys
+from prawcore.exceptions import NotFound
 
 from copy import copy
 import json
@@ -286,13 +287,18 @@ class Navigator(object):
                 if i > 0 and i % 1 == 0:
                     sys.stdout.write( 'processed %d/%d authors...\r' % (i, n_authors))
                     sys.stdout.flush()
-                author_id = author.id
-                #print 'processing author: %s' % author.name
-                previous_time = self.opts.db.get_user_update_time(author_id)
-                if previous_time is None:
-                    self.author_data[author.id] = pod.get_user_data(author, self.opts)
-                elif float((datetime.now() - previous_time).seconds)/(3600.*24) > opts.user_delay:
-                    self.author_data[author.id] = pod.get_user_data(author, self.opts)
+                try:
+                    author_id = author.id
+                    #print 'processing author: %s' % author.name
+                    previous_time = self.opts.db.get_user_update_time(author_id)
+                    if previous_time is None:
+                        self.author_data[author.id] = pod.get_user_data(author, self.opts)
+                    elif float((datetime.now() - previous_time).\
+                               seconds)/(3600.*24) > opts.user_delay:
+                        self.author_data[author.id] = pod.get_user_data(author, self.opts)
+                except NotFound:
+                    #will store data in proper format for shadowbanned users
+                    self.author_data['%%' + str(author.name)] = pod.get_user_data(author, self.opts)
         #write thread data
         print 'writing thread data'
         self.data['thread'][self.thread.id].update({'comments_deleted':self.deleted_comments,
