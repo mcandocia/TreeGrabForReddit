@@ -238,6 +238,7 @@ class Navigator(object):
                 new_comments = new_comments.list()
             if len(new_comments) == 0:
                 #print 'EMPTY MoreComments DETECTED going sideways!'
+                self.deleted_comments += 1
                 return False
             
         return True
@@ -258,6 +259,7 @@ class Navigator(object):
                 #print '(down) replies is actually a forest...correcting'
                 new_comments = new_comments.list()
             if len(new_comments) == 0:
+                self.deleted_comments += 1
                 #print 'EMPTY MoreComments DETECTED going downward!'
                 return False
         return True
@@ -303,7 +305,7 @@ class Navigator(object):
                     #for suspended users, the Redditor object has no ID, though a user can be found
                     #print 'user %s has been suspended' %author.name
                     self.author_data['%%' + str(author.name)] = pod.get_user_data(author, self.opts)
-                    raise AttributeError
+                    
         #write thread data
         print 'writing thread data'
         self.data['thread'][self.thread.id].update({'comments_deleted':self.deleted_comments,

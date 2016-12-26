@@ -1,6 +1,7 @@
 import psycopg2
 from psycopg2.extensions import AsIs
 from dbinfo import *
+import sys
 import itertools
 
 default_schema="default"
@@ -205,9 +206,18 @@ class Database(object):
     def get_user_update_time(self, user_id):
         try:
             self.execute(("SELECT max(timestamp) FROM %s.users WHERE" % self.schema) +\
-                         "id=%s",user_id)
+                         " id=%s",[user_id])
             return self.fetchall()[0][0]
         except:
+            return None
+
+    def get_thread_update_time(self, thread_id):
+        try:
+            self.execute(("SELECT max(timestamp) FROM %s.threads WHERE" % self.schema) +\
+                         " id=%s AND scrape_mode='thread'",[thread_id])
+            return self.fetchall()[0][0]
+        except:
+            print sys.exc_info()
             return None
 
     def update_user(self, data):

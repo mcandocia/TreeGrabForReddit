@@ -6,6 +6,7 @@ import requests
 from requests.exceptions import HTTPError, ConnectionError
 from exceptions import UnicodeDecodeError, IndexError, AttributeError
 import calendar
+import datetime
 import sys
 import random
 import socket
@@ -16,24 +17,123 @@ from navigator import Navigator
 
 from praw_user import scraper
 
+import pytz
+
 import db
 
+def clean_keyboardinterrupt(f):
+    def func(*args, **kwargs):
+        try:
+            return f(*args, **kwargs)
+        except KeyboardInterrupt:
+            print 'exiting via keyboard interrupt'
+            sys.exit()
+    return func
+
+
+def get_age(timestamp):
+    timestamp = pytz.utc.localize(timestamp)
+    now = datetime.datetime.now(pytz.utc)
+    difference = (now - timestamp).seconds
+    days = float(difference) / 3600. / 24.
+    return days
+
+def get_subreddit_posts(subreddit, opts):
+    posts = getattr(subreddit, opts.rank_type)(limit=opts.limit)
+    return [post for post in posts]
+
+def validate_post(post, opts):
+    #check number of comments
+    if opts.mincomments:
+        if opts.mincomments > post.num_comments:
+            return False
+    #check if age is correct if exists
+    if opts.age:
+        thread_time = datetime.datetime.fromtimestamp(post.created_utc)
+        if thread_time is not None:
+            thread_age = get_age(thread_time)
+            if thread_age < opts.age[0] or thread_age > opts.age[1]:
+                return False
+            
+    #check if already in database, then check if able to be rescraped
+    update_time = opts.db.get_thread_update_time(post.id)
+    if update_time is None:
+        return True
+    else:
+        if opts.thread_delay == -1:
+            return False
+        age = get_age(update_time)
+        print 'age: %d' % age
+        if age > opts.thread_delay:
+            print 'UPDATING THREAD'
+        return age > opts.thread_delay
+    
+def select_post(subreddit_name, post_dict, opts, reddit_scraper, refreshed=False):
+    valid_posts = post_dict[subreddit_name]
+    while len(valid_posts) > 0:
+        if opts.unordered:
+            post = valid_posts.pop(random.choice(range(len(valid_posts))))
+        else:
+            post = valid_posts.pop(0)
+        if validate_post(post, opts):
+            return post
+    if not refreshed:
+        print 'refreshing dictionary for %s' % subreddit_name
+        post_dict[subreddit_name] = get_subreddit_posts(reddit_scraper.subreddit(subreddit_name),
+                                                        opts)
+        return select_post(subreddit_name, post_dict, opts, reddit_scraper, refreshed=True)
+    else:
+        print 'cannot find valid entries for %s' % subreddit_name
+        return None
+
+def process_thread(thread_id, opts, reddit_scraper):
+        thread = reddit_scraper.submission(id=thread_id)
+        start = datetime.datetime.now()
+        print '+------------------------------------------------------+'
+        print 'PROCESSING %s, id=%s, in /r/%s' % (thread.title, thread.id,
+                                                  thread.subreddit.display_name)
+        print 'created %s' % datetime.datetime.fromtimestamp(thread.created).strftime('%x %X')
+        print 'author: %s' % str(thread.author)
+        print ''
+        nav = Navigator(thread, opts)
+        if opts.skip_comments:
+            nav.store_thread_data()
+        else:
+            nav.navigate()
+        end = datetime.datetime.now()
+        print 'FINISHED thread w/id=%s, navigated %d comments, %d deleted'\
+            % (thread.id, nav.traversed_comments, nav.deleted_comments)
+        print 'thread scraping time: %d seconds' % (end-start).seconds
+        print '+------------------------------------------------------+'
+
+
+@clean_keyboardinterrupt
 def main(args):
     opts = options()
     reddit_scraper = scraper()
     #parse thread ids
     print 'pattern:', opts.pattern
     for thread_id in opts.ids:
-        thread = reddit_scraper.submission(id=thread_id)
-        print 'PROCESSING %s, id=%s, in /r/%s' % (thread.title, thread.id,
-                                                  thread.subreddit.display_name)
-        nav = Navigator(thread, opts)
-        if opts.skip_comments:
-            nav.store_thread_data()
+        process_thread(thread_id, opts, reddit_scraper)
+    print 'finished with supplied thread ids'
+    #go through subreddits
+    counter = 0
+    n_subreddits = len(opts.subreddits)
+    subreddit_post_dict = {}
+    while opts.N == -1 or counter < opts.N and n_subreddits > 0:
+        subreddit_name = opts.subreddits[counter % n_subreddits]
+        if subreddit_name not in subreddit_post_dict or subreddit_name in ['random','randnsfw']:
+            subreddit = reddit_scraper.subreddit(subreddit_name)
+            subreddit_post_dict[subreddit_name] = get_subreddit_posts(subreddit, opts)
+        thread = select_post(subreddit_name, subreddit_post_dict, opts, reddit_scraper)
+        if thread is None:
+            print 'skipping %s due to insufficient posts' % subreddit_name
         else:
-            nav.navigate()
-        print 'FINISHED thread w/id=%s' % thread.id
-        
+            process_thread(thread.id, opts, reddit_scraper)
+        if len(subreddit_post_dict[subreddit_name]) == 0:
+            subreddit_post_dict.pop(subreddit_name)
+        counter += 1
+        print 'finished with %d threads' % counter
     print 'done'
     return 0
 
@@ -64,7 +164,7 @@ class options(object):
         parser.add_argument('--f-ids',dest='f_thread_ids', nargs='+',
                             help='a list of filenames with line-separated thread IDs to be scraped'\
                             ' sequentially')
-        parser.add_argument('-a','--age',dest='age', nargs=2,type=int,
+        parser.add_argument('-a','--age',dest='age', nargs=2,type=float,
                             help='optional list of 2 values, representing the age in days of posts'\
                             ' that can be scraped; format [lower number] [higher number]')
         parser.add_argument('-uo','--unordered',action='store_true',
@@ -78,7 +178,7 @@ class options(object):
                             'data is scraped. This should be disabled unless you need historical '\
                             'data, since it can affect performance for large databases and make '\
                             'queries more complicated.')
-        parser.add_argument('-td', '--thread_delay',dest='thread_delay',default=-1,nargs=1,
+        parser.add_argument('-td', '--thread_delay',dest='thread_delay',default=-1,nargs=1,type=int,
                             help='If an argument is given, then this variable indicates how many '\
                             'days should pass before a thread is rescraped; if not provided, the '\
                             'threads will never be updated beyond the first scrape; this value '\
@@ -135,6 +235,9 @@ class options(object):
                             help='Get the calculated upvote ratio for threads. This is a separate'\
                             ' API call, so it significantly slows down the rate at which data can'\
                             ' be gathered')
+        parser.add_argument('--mincomments', dest='mincomments', default=None,type=int,
+                            help="Set minimum number of comments for a thread to be collected via"\
+                            " subreddit searching.")
         print 'added arguments'
         args = parser.parse_args()
         print 'parsed arguments'
@@ -195,6 +298,7 @@ class options(object):
             self.history = args.history
         #simple arguments
         self.impose('age')
+        self.impose('mincomments')
         self.impose('history')
         self.impose('thread_delay')
         self.impose('user_delay')
@@ -245,6 +349,8 @@ class options(object):
             if validator is not None:
                 assert validator(val)
             setattr(self, varname,val)
+        else:
+            setattr(self, varname, None)
         return 0
         
 def handle_boolean(obj, args, varname):
