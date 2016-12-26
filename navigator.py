@@ -2,6 +2,7 @@ import os
 import datetime
 from praw.models import MoreComments
 from praw.models.comment_forest import CommentForest
+import sys
 
 from copy import copy
 import json
@@ -30,9 +31,14 @@ class Navigator(object):
             #remove non-root elements of comments
             idx = 0
             while idx < len(self.comments) and idx < self.opts.pattern[0]:
+                for i in range(3):
+                    if isinstance(self.comments[idx], MoreComments):
+                        new_comments = self.expand_if_forest(self.comments.pop(idx).comments())
+                        self.comments = inject(self.comments, new_comments, idx)
                 if isinstance(self.comments[idx], MoreComments):
-                    new_comments = self.expand_if_forest(self.comments.pop(idx).comments())
-                    self.comments = inject(self.comments, new_comments, idx)
+                    print 'failed to expand MoreComments after 3 attempts... removing node'
+                    self.comments.pop(idx)
+                    continue
                 if not self.comments[idx].is_root:
                     try:
                         self.comments.pop(idx)
@@ -65,6 +71,8 @@ class Navigator(object):
             self.is_active=False
         else:
             self.direction = 'D'
+        print 'initialized navigator'
+        sys.stdout.flush()
 
     @pod.retry_if_broken_connection
     def navigate(self):
@@ -75,7 +83,14 @@ class Navigator(object):
         while self.is_active:
             if self.direction in ['D','S']:
                 self.get_comment_data()
+            sys.stdout.write('\r')
+            sys.stdout.write('COMMENT TREE POSITION: ' + str( self.position))
+            #print self.get_comment_branch()
+            sys.stdout.flush()
             self.move_one()
+        sys.stdout.write('\n')
+        sys.stdout.flush()
+        print 'Done navigating thread'
         self.store_all_data()
 
     def get_comment_branch(self):
@@ -83,7 +98,26 @@ class Navigator(object):
 
     def get_comment(self, pop=False):
         if not pop:
-            return self.get_comment_branch()[self.get_level_position()]
+            #currently disabled since better method implemented
+            if len(self.get_comment_branch()) <= self.get_level_position() and False:
+                print 'underfilled branch...navigating up'
+                print self.get_comment_branch()
+                print self.current_level
+                print self.get_level_position()
+                print self.position
+                self.direction = 'U'
+                if self.current_level <> 0:
+                    self.child_counter[self.current_level - 1] -= 1
+                else:
+                    self.direction = 'E'
+                self.move_one(force_up = True)
+            try:
+                #print self.get_comment_branch(), self.get_level_position()
+                #print self.current_level, self.position
+                return self.get_comment_branch()[self.get_level_position()]
+            except AssertionError:
+                print sys.exc_info()
+                raise AssertionError
         else:
             #print self.get_comment_branch()
             #print self.get_comment()
@@ -105,17 +139,17 @@ class Navigator(object):
         else:
             return replies
     
-    def move_one(self):
+    def move_one(self, force_up=False):
         """movement of a single space and direction-changing"""
         if self.direction in ['D','S']:
-            if self.can_move_down():
+            if self.can_move_down() and not force_up:
                 self.child_counter[self.current_level] += 1
                 self.comment_tree[self.current_level + 1]\
                     = self.expand_if_forest(self.get_comment().replies)
                 self.current_level += 1
                 self.position[self.current_level] = 0
                 self.direction = 'D'
-            elif self.can_move_sideways():
+            elif self.can_move_sideways() and not force_up:
                 if self.current_level <> 0:
                     self.child_counter[self.current_level - 1] += 1
                 self.assign_child_counter()
@@ -133,7 +167,7 @@ class Navigator(object):
                 self.assign_child_counter()
         elif self.direction == 'U':
             self.assign_child_counter()
-            if self.can_move_sideways():
+            if self.can_move_sideways() and not force_up:
                 self.position[self.current_level] +=1
                 if self.current_level <> 0:
                     self.child_counter[self.current_level - 1] += 1
@@ -148,7 +182,7 @@ class Navigator(object):
         if self.direction == 'E':
             #self.assign_child_counter()
             self.is_active = False
-        if self.direction not in ['U','E']:
+        if self.direction not in ['U','E'] and not force_up:
             self.check_morecomments()
 
     def assign_child_counter(self):
@@ -169,13 +203,19 @@ class Navigator(object):
             #print 'deforesting at an odd time'
             self.assign_comment_branch(self.get_comment_branch().list())
             #print type(self.get_comment_branch())
+        retval=False
+        for i in range(3):
+            if isinstance(self.get_comment(), MoreComments):
+                comment = self.get_comment(pop=True)
+                self.assign_comment_branch(inject(self.get_comment_branch(),
+                                                  self.expand_if_forest(comment.comments()),
+                                                  self.get_level_position()))
+                retval=True
         if isinstance(self.get_comment(), MoreComments):
-            comment = self.get_comment(pop=True)
-            self.assign_comment_branch(inject(self.get_comment_branch(),
-                                              self.expand_if_forest(comment.comments()),
-                                              self.get_level_position()))
-            return True
-        return False
+            print 'still MoreComments after 3 attempts'
+            self.direction = 'U'
+            retval=True
+        return retval
                 
     def can_move_up(self):
         return self.current_level <> 0
@@ -188,6 +228,17 @@ class Navigator(object):
         elif self.get_level_position() > self.opts.pattern[self.current_level]:
             print 'went too far sideways'
             return False
+        #check if next is MoreComments and check if it's blank
+        next_comment = self.get_comment_branch()[self.get_level_position() + 1]
+        if isinstance(next_comment, MoreComments):
+            new_comments = next_comment.comments()
+            if isinstance(new_comments, CommentForest):
+                #print '(side) replies is actually a forest...correcting'
+                new_comments = new_comments.list()
+            if len(new_comments) == 0:
+                #print 'EMPTY MoreComments DETECTED going sideways!'
+                return False
+            
         return True
     
     def can_move_down(self):
@@ -196,8 +247,18 @@ class Navigator(object):
         elif self.current_level > len(self.opts.pattern) - 1:
             print 'went too far down'
             return False
-        if len(self.get_comment().replies) == 0:
+        #check if lower reply is blank MoreComments
+        next_comment = self.get_comment().replies.list()
+        if len(next_comment) == 0:
             return False
+        if isinstance(next_comment[0], MoreComments):
+            new_comments = next_comment[0].comments()
+            if isinstance(new_comments, CommentForest):
+                #print '(down) replies is actually a forest...correcting'
+                new_comments = new_comments.list()
+            if len(new_comments) == 0:
+                #print 'EMPTY MoreComments DETECTED going downward!'
+                return False
         return True
     
     def move_all(self):
@@ -219,9 +280,14 @@ class Navigator(object):
         #get author data
         self.author_data = {}
         if not self.opts.nouser:
-            for author in self.authors:
+            n_authors = len(self.authors)
+            print 'scraping %d authors' % n_authors
+            for i, author in enumerate(self.authors):
+                if i > 0 and i % 1 == 0:
+                    sys.stdout.write( 'processed %d/%d authors...\r' % (i, n_authors))
+                    sys.stdout.flush()
                 author_id = author.id
-                print 'processing author: %s' % author.name
+                #print 'processing author: %s' % author.name
                 previous_time = self.opts.db.get_user_update_time(author_id)
                 if previous_time is None:
                     self.author_data[author.id] = pod.get_user_data(author, self.opts)
@@ -237,9 +303,10 @@ class Navigator(object):
         for key, value in self.data['comments'].iteritems():
             writer.write_comment(value, self.opts)
         #write user data, as well as post/comment data for that
+        i = 0
         for key, value in self.author_data.iteritems():
             userdata = value['userdata']
-            print 'writing data for user: %s' % userdata['username']
+            #print 'writing data for user: %s' % userdata['username']
             writer.write_user(userdata, self.opts)
             comment_data_dict = value['commentdata']
             thread_data_dict = value['threaddata']
@@ -249,8 +316,11 @@ class Navigator(object):
                 writer.write_thread(tvalue, self.opts)
                 if self.opts.deepuser:
                     pass#self.opts.ids.append(tkey)#not original intention
+            i+=1
+            sys.stdout.write('wrote %d/%d authors to database\r' % (i, n_authors))
+            sys.stdout.flush()
         self.opts.db.commit()
-        print 'STORED DATA FOR THREAD ID %s' % self.thread.id
+        print 'STORED ALL DATA FOR THREAD ID %s' % self.thread.id
 
     def get_thread_info(self):
         """assigns general data to self.data['thread']"""

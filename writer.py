@@ -56,6 +56,7 @@ def write_thread(data, opts):
             if history_mode:
                 db.insert_thread(data)
             elif data['scrape_mode'] == 'thread':
+                #threads should be updated if previous functions have not filtered them out
                 db.update_thread(data)
             else:
                 return False
