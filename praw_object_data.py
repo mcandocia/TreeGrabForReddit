@@ -12,7 +12,7 @@ def retry_if_broken_connection(f):
             except InternalError, ProgrammingError:
                 print sys.exc_info()
                 raise
-            except:
+            except TypeError:
                 print sys.exc_info()
                 print 'sleeping...'
                 time.sleep(10)
