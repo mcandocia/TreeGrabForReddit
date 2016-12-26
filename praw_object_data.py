@@ -3,6 +3,7 @@ import time
 import sys
 from psycopg2 import InternalError, ProgrammingError
 from prawcore.exceptions import NotFound
+from prawcore.exceptions import RequestException
 
 #update this over time with appropriate errors; monitor while it's relaxed
 def retry_if_broken_connection(f):
@@ -13,7 +14,7 @@ def retry_if_broken_connection(f):
             except InternalError, ProgrammingError:
                 print sys.exc_info()
                 raise
-            except TypeError:
+            except RequestException:
                 print sys.exc_info()
                 print 'sleeping...'
                 time.sleep(10)
@@ -41,8 +42,11 @@ def get_user_data(user, opts, mode='thread'):
         threads = {}
         for post in post_history:
             threads.update(get_thread_data(post, opts, mode='minimal'))
-    except NotFound:
-        print '%s is shadowbanned' % str(user)
+    except (NotFound, AttributeError) as err:
+        if isinstance(err, NotFound):
+            print '%s is shadowbanned' % str(user)
+        elif isinstance(err, AttributeError):
+            print '%s is suspended' % str(user)
         comments = {}
         threads = {}
         data = {'username':user.name,

@@ -299,6 +299,11 @@ class Navigator(object):
                 except NotFound:
                     #will store data in proper format for shadowbanned users
                     self.author_data['%%' + str(author.name)] = pod.get_user_data(author, self.opts)
+                except AttributeError:
+                    #for suspended users, the Redditor object has no ID, though a user can be found
+                    #print 'user %s has been suspended' %author.name
+                    self.author_data['%%' + str(author.name)] = pod.get_user_data(author, self.opts)
+                    raise AttributeError
         #write thread data
         print 'writing thread data'
         self.data['thread'][self.thread.id].update({'comments_deleted':self.deleted_comments,
