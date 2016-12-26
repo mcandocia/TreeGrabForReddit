@@ -9,10 +9,28 @@ The script is currently in its early stage, but here's how you can run it:
 3. Edit dbinfo.py to reflect the PostgreSQL settings
 4. Edit praw_user.py to reflect your Reddit developer account information.
 
-Right now the scraper (if run from scraper.py) will only go through files by ID (supplied in a line-separated file and/or manually on the command-line).
+Right now the scraper (if run from scraper.py) can run through files if you manually give the post IDs and/or you supply a list of subreddits to cyclically collect data from.
 
 The basic command format is
 
     python scraper.py SCHEMA_NAME --ids id1 id2 id3...
 
 You can use --help if you want more details, but not all of the functions/features are implemented yet.
+
+----------------------
+--GENERAL GUIDELINES--
+----------------------
+
+* Reddit returns query results in groups of 100 (i.e., per API call). Unless you specifically want less data, it's recommended to have --user_thread_limit, --user_comment_limit, and --limit be integer multiples of 100.
+
+* It takes roughly a second for each API call request. Gathering longer post and comment history of users takes up a very long time.
+
+* You can use "random" or "randnsfw" as subreddit name arguments. However, post histories are not reused for subreddits selected this way. Larger --limit arguments will noticeably increase the amount of time it takes for the code to run, especially if less data is gathered from users via thread and comment limits.
+
+* If the first value of --pattern is large, it may take a while for a larger thread to begin navigating, since it needs to weed out more non-top-level comments and expand potentially lower-level comment trees and get rid of those if they are lower-level.
+
+* If you want to scrape some subreddits more frequently than others, you can enter the subreddit name more than once either in the --subreddits argument or in the file referenced by the -f_subreddits argument.
+
+* IDs are scraped first, then subreddits. 
+
+* --constants is not very well implemented yet, and if you want to automate a particular scrape command, you should save the command as text and run it in a python file with an os.system() call.
