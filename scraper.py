@@ -64,7 +64,7 @@ class options(object):
         parser.add_argument('--f-ids',dest='f_thread_ids', nargs='+',
                             help='a list of filenames with line-separated thread IDs to be scraped'\
                             ' sequentially')
-        parser.add_argument('-a','--age',dest='age', nargs=2,
+        parser.add_argument('-a','--age',dest='age', nargs=2,type=int,
                             help='optional list of 2 values, representing the age in days of posts'\
                             ' that can be scraped; format [lower number] [higher number]')
         parser.add_argument('-uo','--unordered',action='store_true',
@@ -84,7 +84,7 @@ class options(object):
                             'threads will never be updated beyond the first scrape; this value '\
                             'also controls the delay for comments to be overwritten if history is'\
                             ' disabled (default)')
-        parser.add_argument('-ud','--user-delay',dest='user_delay',default=-1,nargs=1,
+        parser.add_argument('-ud','--user-delay',dest='user_delay',default=-1,nargs=1,type=int,
                             help='If an argument is given, then this variable indicates how many '\
                             'days should pass before a user is rescraped; if not provided, the '\
                             'user will never be updated beyond the first scrape')
@@ -93,15 +93,15 @@ class options(object):
                             'a user\'s history based on the posts they commented on/submitted. '\
                             'This is generally not a good idea, as a few users can take a very '\
                             'long time to completely scrape')
-        parser.add_argument('-ucl','--user_comment_limit',dest='user_comment_limit',
+        parser.add_argument('-ucl','--user-comment-limit',dest='user_comment_limit',type=int,
                             default=100,nargs=1,
                             help='The number of comments in a user\'s history that will be'\
                             ' scraped at most.')
-        parser.add_argument('-utl','--user_thread_limit',dest='user_thread_limit',
+        parser.add_argument('-utl','--user-thread-limit',dest='user_thread_limit',type=int,
                             default=100,nargs=1,
                             help='The number of threads in a user\'s history that will be'\
                             ' scraped at most.')
-        parser.add_argument('-l','--limit',dest='limit',default=100,nargs=1,
+        parser.add_argument('-l','--limit',dest='limit',default=100,nargs=1,type=int,
                             help='The number of threads in a subreddit that the parser will '\
                             'attempt to search')
         parser.add_argument('-t','--type',dest='rank_type',default='new',nargs=1,
