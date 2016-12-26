@@ -103,9 +103,12 @@ class Database(object):
         print 'made threads table'
         if unique_ids.get('users',True):
             #main info
+            #username is primary key due to existence of shadowbanned users, who
+            #are only identified by name and have no other record other than comments
+            #manually encountered
             self.cur.execute("""CREATE TABLE IF NOT EXISTS %s.users(
-            username VARCHAR(30),
-            id VARCHAR(6) PRIMARY KEY,
+            username VARCHAR(30) PRIMARY KEY,
+            id VARCHAR(6),
             comment_karma INT,
             post_karma INT,
             is_mod BOOLEAN,
