@@ -72,6 +72,10 @@ def get_thread_data(thread, opts, mode='minimal'):
         ratio = thread.upvote_ratio
     else:
         ratio = None
+    if thread.author is None:
+        author_name = None
+    else:
+        author_name = thread.author.name
     data = {'id':thread.id,
             'title':thread.title,
             'subreddit':thread.subreddit.display_name,
@@ -80,7 +84,7 @@ def get_thread_data(thread, opts, mode='minimal'):
             'edited':edited,
             'score':thread.score,
             'percentage':ratio,
-            'author_name':thread.author.name,
+            'author_name':author_name,
             'author_id':author_id,
             'author_flair':thread.author_flair_text,
             'author_flair_css_class':thread.author_flair_css_class,
