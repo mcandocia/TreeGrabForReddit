@@ -26,6 +26,7 @@ class Navigator(object):
         self.deleted_comments = 0
         self.infinite_loop_counter = 0
         self.child_counter = [0 for _ in opts.pattern]
+        only_deleted_comments = False
         #general
         if not opts.skip_comments:
             self.comments = thread.comments.list()
@@ -51,6 +52,10 @@ class Navigator(object):
                     idx += 1
             self.comment_tree = [[] for _ in opts.pattern]
             self.comment_tree[0] = self.comments
+            only_deleted_comments = len(self.comment_tree)==0
+            if only_deleted_comments:
+                print 'this thread only has deleted comments'
+                self.deleted_comments = self.thread.num_comments
         self.start_time = datetime.datetime.now()
         self.data = {'thread':{},'comments':[]}
         self.position = [-1 for _ in opts.pattern]
@@ -66,7 +71,7 @@ class Navigator(object):
         self.direction = 'B'
         self.get_thread_info()
         self.is_active = True
-        if self.thread.num_comments==0:
+        if self.thread.num_comments==0 or only_deleted_comments:
             self.direction='E'
             self.move_one()
             self.is_active=False
