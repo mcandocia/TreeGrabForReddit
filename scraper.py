@@ -94,6 +94,7 @@ def process_thread(thread_id, opts, reddit_scraper):
                                                   thread.subreddit.display_name)
         print 'created %s' % datetime.datetime.fromtimestamp(thread.created).strftime('%x %X')
         print 'author: %s' % str(thread.author)
+        print 'score: %d' % thread.score
         print ''
         nav = Navigator(thread, opts)
         if opts.skip_comments:
