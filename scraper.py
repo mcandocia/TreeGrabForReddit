@@ -19,6 +19,8 @@ from praw_user import scraper
 
 from user_scrape import scrape_user
 
+from praw_object_data import retry_if_broken_connection
+
 import pytz
 
 import db
@@ -47,10 +49,12 @@ def get_age(timestamp):
     days = float(difference) / 3600. / 24.
     return days
 
+@retry_if_broken_connection
 def get_subreddit_posts(subreddit, opts):
     posts = getattr(subreddit, opts.rank_type)(limit=opts.limit)
     return [post for post in posts]
 
+@retry_if_broken_connection
 def validate_post(post, opts):
     #check number of comments
     if opts.mincomments:
@@ -76,7 +80,8 @@ def validate_post(post, opts):
         if age > opts.thread_delay:
             print 'UPDATING THREAD'
         return age > opts.thread_delay
-    
+
+@retry_if_broken_connection
 def select_post(subreddit_name, post_dict, opts, reddit_scraper, refreshed=False):
     valid_posts = post_dict[subreddit_name]
     while len(valid_posts) > 0:
@@ -122,10 +127,20 @@ def main(args):
     opts = options()
     reddit_scraper = scraper()
     #parse users
+    if len(opts.users) > 0:
+        opts.old_user_comment_limit = opts.user_comment_limit
+        opts.old_user_thread_limit = opts.user_thread_limit
+        if opts.man_user_comment_limit <> None:
+            opts.user_comment_limit = opts.man_user_comment_limit
+        if opts.man_user_thread_limit <> None:
+            opts.user_thread_limit = opts.man_user_thread_limit
     for username in opts.users:
         scrape_user(username, opts, reddit_scraper, force_read=opts.deepuser)
     if len(opts.users) > 0 and opts.deepuser:
         random.shuffle(opts.ids)
+    if len(opts.users) > 0:
+        opts.user_comment_limit = opts.old_user_comment_limit
+        opts.user_thread_limit = opts.old_user_thread_limit
     #parse thread ids
     print 'pattern:', opts.pattern
     for thread_id in opts.ids:
@@ -160,7 +175,7 @@ class options(object):
         #initialize global accumulators
         self.deepcounter = 0
         #logging variables
-        self.original_command = sys.argv[0]
+        self.original_command =' '.join(sys.argv)
         self.start_time = datetime.datetime.now(pytz.utc)
         #create parser and add arguments
         parser = ArgumentParser(description='scrape data from Reddit')
@@ -182,6 +197,12 @@ class options(object):
                             ' added to a list of subreddits that will be scraped on a rotation')
         parser.add_argument('-u','--users', dest='users', nargs='+',
                             help='A list of users to search through')
+        parser.add_argument('--man-user-comment-limit',dest='man_user_comment_limit',type=int,
+                            help="If user IDs are supplied, this overrides --user-comment-limit"\
+                            " for those IDs.")
+        parser.add_argument('--man-user-thread-limit', dest='man_user_thread_limit',type=int,
+                            help="If user IDs are supplied, this overrides --user-thread-limit"\
+                            " for those IDs.")
         parser.add_argument('-fu','--f-users', dest='f_users',nargs='+')
         parser.add_argument('--f-ids',dest='f_thread_ids', nargs='+',
                             help='a list of filenames with line-separated thread IDs to be scraped'\
@@ -329,6 +350,8 @@ class options(object):
         self.impose('user_delay')
         self.impose('user_comment_limit')
         self.impose('user_thread_limit')
+        self.impose('man_user_comment_limit')
+        self.impose('man_user_thread_limit')        
         self.impose('limit')
         self.impose('skip_comments')
         self.impose('rank_type')
