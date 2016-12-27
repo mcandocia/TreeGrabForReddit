@@ -325,7 +325,7 @@ class Database(object):
         update_data = make_update_data(cols, values)
         template = make_update_template(values)
         statement = ('UPDATE %s' % self.schema) + '.log SET ' + template + \
-                    ' WHERE start_time=\'%s\''
+                    ' WHERE start_time=%s'
         self.execute(statement, update_data + (opts.start_time,) )
         self.commit()
         print 'updated log'
