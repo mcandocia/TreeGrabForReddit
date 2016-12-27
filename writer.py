@@ -17,7 +17,8 @@ def write_user(data, opts):
     #check if user in database
     #print data
     try:
-        db.execute('SELECT max(timestamp) FROM %s.users WHERE id=%%s' % db.schema,[data['id']])
+        db.execute('SELECT max(timestamp) FROM %s.users WHERE username=%%s' % db.schema,
+                   [data['username']])
         last_time = db.fetchall()[0][0]
         if last_time is None:
             db.insert_user(data)
