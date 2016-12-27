@@ -4,6 +4,7 @@ import sys
 from psycopg2 import InternalError, ProgrammingError
 from prawcore.exceptions import NotFound
 from prawcore.exceptions import RequestException
+from prawcore.exceptions import Forbidden
 
 import pytz
 
@@ -42,14 +43,23 @@ def get_user_data(user, opts, mode='thread'):
         #get comment history
         comment_history = user.comments.new(limit=opts.user_comment_limit)
         comments = {}
-        for comment in comment_history:
-            comments.update(get_comment_data(comment, opts, mode='minimal', author_id = data['id']))
+        try:
+            for comment in comment_history:
+                comments.update(get_comment_data(comment, opts, mode='minimal',
+                                                 author_id = data['id']))
+        except Forbidden:
+            print user.name
+            print 'forbidden comment history for some reason'
 
         #get submission history
         post_history = user.submissions.new(limit=opts.user_thread_limit)
         threads = {}
-        for post in post_history:
-            threads.update(get_thread_data(post, opts, mode='minimal'))
+        try:
+            for post in post_history:
+                threads.update(get_thread_data(post, opts, mode='minimal'))
+        except Forbidden:
+            print user.name
+            print 'forbidden post history for some reason'
     except (NotFound, AttributeError) as err:
         if isinstance(err, NotFound):
             print '%s is shadowbanned' % str(user)
