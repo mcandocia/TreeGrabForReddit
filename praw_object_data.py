@@ -5,6 +5,14 @@ from psycopg2 import InternalError, ProgrammingError
 from prawcore.exceptions import NotFound
 from prawcore.exceptions import RequestException
 
+import pytz
+
+def localize(obj):
+    if obj is None:
+        return None
+    else:
+        return pytz.utc.localize(obj)
+
 #update this over time with appropriate errors; monitor while it's relaxed
 def retry_if_broken_connection(f):
     def func(*args, **kwargs):

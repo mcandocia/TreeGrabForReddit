@@ -1,5 +1,6 @@
 import os
 import datetime
+import pytz
 from praw.models import MoreComments
 from praw.models.comment_forest import CommentForest
 import sys
@@ -56,7 +57,7 @@ class Navigator(object):
             if only_deleted_comments:
                 print 'this thread only has deleted comments'
                 self.deleted_comments = self.thread.num_comments
-        self.start_time = datetime.datetime.now()
+        self.start_time = datetime.datetime.now(pytz.utc)
         self.data = {'thread':{},'comments':[]}
         self.position = [-1 for _ in opts.pattern]
         self.position[0] = 0
@@ -297,10 +298,10 @@ class Navigator(object):
                 try:
                     author_id = author.id
                     #print 'processing author: %s' % author.name
-                    previous_time = self.opts.db.get_user_update_time(author_id)
+                    previous_time = pod.localize(self.opts.db.get_user_update_time(author_id))
                     if previous_time is None:
                         self.author_data[author.id] = pod.get_user_data(author, self.opts)
-                    elif float((datetime.now() - previous_time).\
+                    elif float((datetime.now(pytz.utc) - previous_time).\
                                seconds)/(3600.*24) > opts.user_delay:
                         self.author_data[author.id] = pod.get_user_data(author, self.opts)
                 except NotFound:

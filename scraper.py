@@ -17,9 +17,15 @@ from navigator import Navigator
 
 from praw_user import scraper
 
+from user_scrape import scrape_user
+
 import pytz
 
 import db
+
+#used for keyboard interrupt logging
+logging = False
+logopts = None
 
 def clean_keyboardinterrupt(f):
     def func(*args, **kwargs):
@@ -27,6 +33,9 @@ def clean_keyboardinterrupt(f):
             return f(*args, **kwargs)
         except KeyboardInterrupt:
             print 'exiting via keyboard interrupt'
+            if logging:
+                print 'making log'
+                logopts.db.update_log_entry(logopts, 'Keyboard Interrupt')
             sys.exit()
     return func
 
@@ -112,6 +121,11 @@ def process_thread(thread_id, opts, reddit_scraper):
 def main(args):
     opts = options()
     reddit_scraper = scraper()
+    #parse users
+    for username in opts.users:
+        scrape_user(username, opts, reddit_scraper, force_read=opts.deepuser)
+    if len(opts.users) > 0 and opts.deepuser:
+        random.shuffle(opts.ids)
     #parse thread ids
     print 'pattern:', opts.pattern
     for thread_id in opts.ids:
@@ -136,11 +150,18 @@ def main(args):
         counter += 1
         print 'finished with %d threads' % counter
     print 'done'
+    if opts.log:
+        opts.db.update_log_entry(opts, 'completed')
     return 0
 
 class options(object):
     """this class processes command-line input to create overall scraper options"""
     def __init__(self, *args, **kwargs):
+        #initialize global accumulators
+        self.deepcounter = 0
+        #logging variables
+        self.original_command = sys.argv[0]
+        self.start_time = datetime.datetime.now(pytz.utc)
         #create parser and add arguments
         parser = ArgumentParser(description='scrape data from Reddit')
         parser.add_argument('name',
@@ -165,6 +186,9 @@ class options(object):
         parser.add_argument('--f-ids',dest='f_thread_ids', nargs='+',
                             help='a list of filenames with line-separated thread IDs to be scraped'\
                             ' sequentially')
+        parser.add_argument('--log', dest='log',action='store_true',
+                            help='Stores command, stop/start times, and start/stop causes to a log'\
+                            ' in the database (under schema.log)')
         parser.add_argument('-a','--age',dest='age', nargs=2,type=float,
                             help='optional list of 2 values, representing the age in days of posts'\
                             ' that can be scraped; format [lower number] [higher number]')
@@ -309,7 +333,7 @@ class options(object):
         self.impose('skip_comments')
         self.impose('rank_type')
         for elem in ['nouser','grabauthors','rescrape_posts','rescrape_users',
-                     'get_upvote_ratio','deepuser']:
+                     'get_upvote_ratio','deepuser','log']:
             setattr(self, elem, handle_boolean(self, args, elem))
         self.impose('N')
 
@@ -341,6 +365,12 @@ class options(object):
             else:
                 print 'did not delete database'
                 sys.exit()
+        if self.log:
+            global logging
+            global logopts
+            logging = True
+            logopts = self
+            self.db.add_log_entry(self)
 
         print 'intialized database'
     
