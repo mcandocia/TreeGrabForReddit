@@ -38,6 +38,10 @@ class Navigator(object):
                     if isinstance(self.comments[idx], MoreComments):
                         new_comments = self.expand_if_forest(self.comments.pop(idx).comments())
                         self.comments = inject(self.comments, new_comments, idx)
+                    if idx == len(self.comments):
+                        break
+                if idx == len(self.comments):
+                    break
                 if isinstance(self.comments[idx], MoreComments):
                     print 'failed to expand MoreComments after 3 attempts... removing node'
                     self.comments.pop(idx)
