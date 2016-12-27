@@ -100,15 +100,17 @@ def select_post(subreddit_name, post_dict, opts, reddit_scraper, refreshed=False
         print 'cannot find valid entries for %s' % subreddit_name
         return None
 
+@retry_if_broken_connection
 def process_thread(thread_id, opts, reddit_scraper):
         thread = reddit_scraper.submission(id=thread_id)
+        print thread_id#keep until certain bug issue is gone
         start = datetime.datetime.now()
         print '+------------------------------------------------------+'
         print 'PROCESSING %s, id=%s, in /r/%s' % (thread.title, thread.id,
                                                   thread.subreddit.display_name)
         print 'created %s' % datetime.datetime.fromtimestamp(thread.created).strftime('%x %X')
         print 'author: %s' % str(thread.author)
-        print 'score: %d' % thread.score
+        print 'score: %d, num_comments: %d' % (thread.score, thread.num_comments)
         print ''
         nav = Navigator(thread, opts)
         if opts.skip_comments:
