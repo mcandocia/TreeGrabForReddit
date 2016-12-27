@@ -2,12 +2,13 @@ The goal of this script is to provide a way of storing Reddit data into a tree-l
 
 For an example of previous work done using this type of data, see a course project I wrote a couple years ago: https://www.scribd.com/document/250044180/Analyzing-Political-Discourse-on-Reddit 
 
-The script is currently in its early stage, but here's how you can run it:
+The script is currently new and being debugged; here's how you can run it:
 
 1. Set up PostgreSQL on your computer/server. Make a user to access the database.
 2. Get a dev account with Reddit so you have a username, client ID, and client secret key
 3. Edit dbinfo.py to reflect the PostgreSQL settings
 4. Edit praw_user.py to reflect your Reddit developer account information.
+5. Use the command line to run the code.
 
 Right now the scraper (if run from scraper.py) can run through files if you manually give the post IDs and/or you supply a list of subreddits to cyclically collect data from. You can also supply a list of user names to scrape through beforehand.
 
@@ -17,9 +18,21 @@ The basic command format is
 
 You can use --help if you want more details, but not all of the functions/features are implemented yet.
 
-----------------------
---GENERAL GUIDELINES--
-----------------------
++--------------------+
+|----REQUIREMENTS----|
++--------------------+
+
+1. PostgreSQL (anything >=9.1 will work)
+2. Python >= 2.7.6
+   * psycopg2 (install after PostgreSQL)
+   * praw
+   * pytz
+3. A Reddit account with API permissions. You will need to make your own project page (most likely GitHub). See https://www.reddit.com/wiki/api .
+
+
++--------------------+
+|-GENERAL GUIDELINES-|
++--------------------+
 
 * Reddit returns query results in groups of 100 (i.e., per API call). Unless you specifically want less data, it's recommended to have --user_thread_limit, --user_comment_limit, and --limit be integer multiples of 100.
 
