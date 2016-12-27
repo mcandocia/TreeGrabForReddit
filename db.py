@@ -3,6 +3,8 @@ from psycopg2.extensions import AsIs
 from dbinfo import *
 import sys
 import itertools
+import datetime
+import pytz
 
 default_schema="default"
 
@@ -38,6 +40,7 @@ class Database(object):
         print """CREATE SCHEMA IF NOT EXISTS %s;""" % self.schema
         self.cur.execute("""CREATE SCHEMA IF NOT EXISTS %s;""" % self.schema)
         print 'made schema'
+        self.make_log_table()
         if unique_ids.get('threads',True):
             self.cur.execute("""CREATE TABLE IF NOT EXISTS %s.threads(
             id CHAR(6) PRIMARY KEY,
@@ -283,6 +286,49 @@ class Database(object):
             self.execute("DROP SCHEMA %s;" % self.schema)
             print 'dropped schema %s' % self.schema
         self.commit()
+
+    def make_log_table(self):
+        self.execute("CREATE TABLE IF NOT EXISTS %s.log" % self.schema + """(
+        start_time TIMESTAMP PRIMARY KEY,
+        end_time TIMESTAMP,
+        command TEXT,
+        stop_reason VARCHAR(20),
+        notes TEXT);""")
+
+    def add_log_entry(self, opts):
+        data={'start_time':opts.start_time,
+              'end_time':None,
+              'command':opts.original_command,
+              'stop_reason':None,
+              'notes':None}
+        
+        self.execute(("INSERT INTO %s.log(start_time, " % self.schema) + """
+                     end_time,
+                     command,
+                     stop_reason,
+        notes)
+        VALUES (%s, %s, %s, %s, %s);""", [data['start_time'],
+                                          data['end_time'],
+                                          data['command'],
+                                          data['stop_reason'],
+                                          data['notes']])
+        self.commit()
+        print 'made log entry'
+
+    def update_log_entry(self, opts, reason, notes=None):
+        start_time = opts.start_time
+        data={'end_time':datetime.datetime.now(pytz.utc),
+              'stop_reason':reason,
+              'notes':notes}
+        cols = data.keys()
+        values = [data[key] for key in cols]
+        update_data = make_update_data(cols, values)
+        template = make_update_template(values)
+        statement = ('UPDATE %s' % self.schema) + '.log SET ' + template + \
+                    ' WHERE start_time=\'%s\''
+        self.execute(statement, update_data + (opts.start_time,) )
+        self.commit()
+        print 'updated log'
 
 def make_update_data(cols, values):
     d1 =  ((AsIs(col), val) for col, val in zip(cols, values) if val is not None)
