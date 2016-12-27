@@ -9,7 +9,7 @@ The script is currently in its early stage, but here's how you can run it:
 3. Edit dbinfo.py to reflect the PostgreSQL settings
 4. Edit praw_user.py to reflect your Reddit developer account information.
 
-Right now the scraper (if run from scraper.py) can run through files if you manually give the post IDs and/or you supply a list of subreddits to cyclically collect data from.
+Right now the scraper (if run from scraper.py) can run through files if you manually give the post IDs and/or you supply a list of subreddits to cyclically collect data from. You can also supply a list of user names to scrape through beforehand.
 
 The basic command format is
 
@@ -34,3 +34,11 @@ You can use --help if you want more details, but not all of the functions/featur
 * IDs are scraped first, then subreddits. 
 
 * --constants is not very well implemented yet, and if you want to automate a particular scrape command, you should save the command as text and run it in a python file with an os.system() call.
+
++---------------------+
+|-----OTHER NOTES-----|
++---------------------+
+
+* The number of comments navigated per thread variable is currently broken, but it should be possible via (possibly expensive) SQL calls to use comment IDs to rederive those values more accurately.
+
+* If you discover any other bugs (unrelated to stdout output prettiness), please open a new issue.
