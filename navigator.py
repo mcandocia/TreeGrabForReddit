@@ -371,10 +371,10 @@ class Navigator(object):
         if comment_id not in self.comment_id_set:
             self.traversed_comments += 1
             self.comment_id_set.add(comment_id)
-                    data = pod.get_comment_data(comment, self.opts, 'thread')
-                    data[comment.id].update({'absolute_position':copy(self.position),
-                                             'thread_begin_timestamp':self.start_time})
-                    self.data['comments'].update(data)
+            data = pod.get_comment_data(comment, self.opts, 'thread')
+            data[comment.id].update({'absolute_position':copy(self.position),
+                                     'thread_begin_timestamp':self.start_time})
+            self.data['comments'].update(data)
 
         else:
             pass
