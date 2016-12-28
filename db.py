@@ -284,6 +284,7 @@ class Database(object):
             self.execute("DROP TABLE %s;" % table)
             print 'dropped %s' % table
         self.execute("DROP INDEX IF EXISTS %s.user_name_index;" % self.schema)
+        self.execute("DROP TABLE IF EXISTS %s.log;" % self.schema)
         if not exclude_schema:
             self.execute("DROP SCHEMA %s;" % self.schema)
             print 'dropped schema %s' % self.schema
