@@ -13,8 +13,8 @@ import writer
 import praw_object_data as pod
 
 def check_id(comment, parent_id):
-    if isinstance(comment, MoreComments):
-        return comment.parent_id == parent_id
+    if comment is not None and parent_id is not None:
+        return comment.parent_id in [parent_id, 't1_' + parent_id]
     else:
         return True
 
@@ -43,7 +43,8 @@ class Navigator(object):
             while idx < len(self.comments) and idx < self.opts.pattern[0]:
                 for i in range(3):
                     if isinstance(self.comments[idx], MoreComments):
-                        new_comments = self.expand_if_forest(self.comments.pop(idx).comments())
+                        new_comments = self.expand_if_forest(self.comments.pop(idx).comments(),
+                                                             halt_early=True)
                         self.comments = inject(self.comments, new_comments, idx)
                     if idx == len(self.comments):
                         break
@@ -119,17 +120,15 @@ class Navigator(object):
     def get_comment(self, pop=False, shift=0):
         if not pop:
             try:
-                #print self.get_comment_branch(), self.get_level_position()
-                #print self.current_level, self.position
+                if self.current_level==0 and shift < 0:
+                    print 'attempting to shift too far back'
                 return self.get_comment_branch(shift=shift)[self.get_level_position(shift=shift)]
             except AssertionError:
                 print sys.exc_info()
                 raise AssertionError
         else:
-            #print self.get_comment_branch()
-            #print self.get_comment()
-            #print self.position
-            #print self.direction
+            if self.current_level==0 and shift < 0:
+                print 'attempting to shift too far back (with pop)'
             return self.get_comment_branch(shift=shift).pop(self.get_level_position(shift=shift))
 
     def get_level_position(self, shift=0):
@@ -138,15 +137,37 @@ class Navigator(object):
     def assign_comment_branch(self, val, level_offset=0):
         self.comment_tree[self.current_level + level_offset] = val
 
-    def expand_if_forest(self, replies, valid_parent_id=None):
+    def expand_if_forest(self, replies, valid_parent_id=None, halt_early=False):
         if isinstance(replies, MoreComments):
             replies = replies.comments().list()
         if isinstance(replies, CommentForest):
             val = replies.list()
         else:
             val =  replies
+        if halt_early:
+            return val
+        #expand morecomments
+        idx = 0
+
+        while idx < len(val) and valid_parent_id:
+            
+            if valid_parent_id:
+                #print idx, val
+                if not check_id(val[idx], valid_parent_id):
+                    val.pop(idx)
+                else:
+                    if isinstance(val[idx], MoreComments):
+                        morecomments = val.pop(idx).comments().list()
+                        val = inject(val,
+                                     [v for v in morecomments\
+                                      if check_id(v, valid_parent_id)],
+                                      idx)
+                    else:
+                        idx+=1
+            else:
+                print 'stuck in loop...'
         if valid_parent_id:
-            retval = [v for v in val if check_id(val, valid_parent_id)]
+            retval = [v for v in val if check_id(v, valid_parent_id)]
             return retval
         else:
             return val
@@ -156,8 +177,13 @@ class Navigator(object):
         if self.direction in ['D','S']:
             if self.can_move_down() and not force_up:
                 self.child_counter[self.current_level] += 1
+                if self.current_level <> 0:
+                    valid_id = self.get_comment().id
+                else:
+                    valid_id = None
                 self.comment_tree[self.current_level + 1]\
-                    = self.expand_if_forest(self.get_comment().replies)
+                    = self.expand_if_forest(self.get_comment().replies,
+                                            valid_parent_id=valid_id)
                 self.current_level += 1
                 self.position[self.current_level] = 0
                 self.direction = 'D'
@@ -245,13 +271,15 @@ class Navigator(object):
         #check if next is MoreComments and check if it's blank
         next_comment = self.get_comment_branch()[self.get_level_position() + 1]
         if isinstance(next_comment, MoreComments):
-            new_comments = next_comment.comments()
+            new_comments = self.expand_if_forest(next_comment.comments(),
+                                                      valid_parent_id=self.get_comment().parent_id)
             if isinstance(new_comments, CommentForest):
                 #print '(side) replies is actually a forest...correcting'
                 new_comments = new_comments.list()
             if len(new_comments) == 0:
                 #print 'EMPTY MoreComments DETECTED going sideways!'
-                self.deleted_comments += 1
+                if self.get_comment().id not in self.comment_id_set:
+                    self.deleted_comments += 1
                 return False
             
         return True
@@ -263,16 +291,20 @@ class Navigator(object):
             print 'went too far down'
             return False
         #check if lower reply is blank MoreComments
-        next_comment = self.get_comment().replies.list()
+        valid_id = self.get_comment().id
+        next_comment = self.expand_if_forest(self.get_comment().replies.list(),
+                                             valid_parent_id = valid_id)
         if len(next_comment) == 0:
             return False
         if isinstance(next_comment[0], MoreComments):
             new_comments = next_comment[0].comments()
             if isinstance(new_comments, CommentForest):
                 #print '(down) replies is actually a forest...correcting'
-                new_comments = new_comments.list()
+                new_comments = self.expand_if_forest(new_comments.list(),
+                                                     valid_parent_id=valid_id)
             if len(new_comments) == 0:
-                self.deleted_comments += 1
+                if self.get_comment().id not in self.comment_id_set:
+                    self.deleted_comments += 1
                 #print 'EMPTY MoreComments DETECTED going downward!'
                 return False
         return True
@@ -366,7 +398,7 @@ class Navigator(object):
         comment_id = comment.id
         if current_author is not None:
             self.authors.add(current_author)
-        else:
+        elif comment_id not in self.comment_id_set:
             self.deleted_comments += 1
         if comment_id not in self.comment_id_set:
             self.traversed_comments += 1
