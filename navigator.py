@@ -157,7 +157,9 @@ class Navigator(object):
                     val.pop(idx)
                 else:
                     if isinstance(val[idx], MoreComments):
-                        morecomments = val.pop(idx).comments().list()
+                        morecomments = val.pop(idx).comments()
+                        if isinstance(morecomments, CommentForest):
+                            morecomments = morecomments.list()
                         val = inject(val,
                                      [v for v in morecomments\
                                       if check_id(v, valid_parent_id)],
