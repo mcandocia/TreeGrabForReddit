@@ -6,7 +6,7 @@ from praw.models.comment_forest import CommentForest
 import sys
 from prawcore.exceptions import NotFound
 
-from copy import copy
+from copy import copy, deepcopy
 import json
 
 import writer
@@ -150,7 +150,6 @@ class Navigator(object):
         idx = 0
 
         while idx < len(val) and valid_parent_id:
-            
             if valid_parent_id:
                 #print idx, val
                 if not check_id(val[idx], valid_parent_id):
@@ -179,10 +178,7 @@ class Navigator(object):
         if self.direction in ['D','S']:
             if self.can_move_down() and not force_up:
                 self.child_counter[self.current_level] += 1
-                if self.current_level <> 0:
-                    valid_id = self.get_comment().id
-                else:
-                    valid_id = None
+                valid_id = self.get_comment().id
                 self.comment_tree[self.current_level + 1]\
                     = self.expand_if_forest(self.get_comment().replies,
                                             valid_parent_id=valid_id)
@@ -240,14 +236,16 @@ class Navigator(object):
 
     def check_morecomments(self):
         if isinstance(self.get_comment_branch(), CommentForest):
-            #print 'deforesting at an odd time'
             self.assign_comment_branch(self.get_comment_branch().list())
-            #print type(self.get_comment_branch())
         retval=False
         for i in range(3):
             if isinstance(self.get_comment(), MoreComments):
                 comment = self.get_comment(pop=True)
-                valid_id = self.get_comment(shift=-1).id
+                if self.current_level <> 0:
+                    valid_id = self.get_comment(shift=-1).id
+                else:
+                    #should never happen
+                    valid_id = None
                 self.assign_comment_branch(inject(self.get_comment_branch(),
                                                   self.expand_if_forest(comment.comments(),
                                                                         valid_parent_id=valid_id),
@@ -263,6 +261,9 @@ class Navigator(object):
         return self.current_level <> 0
     
     def can_move_sideways(self):
+        if self.get_level_position() > len(self.get_comment_branch()) - 1:
+            print 'already went off comment branch...'
+            return False
         if self.get_level_position() == len(self.get_comment_branch()) - 1:
             return False
         if self.get_level_position() == self.opts.pattern[self.current_level]:
@@ -273,8 +274,10 @@ class Navigator(object):
         #check if next is MoreComments and check if it's blank
         next_comment = self.get_comment_branch()[self.get_level_position() + 1]
         if isinstance(next_comment, MoreComments):
-            new_comments = self.expand_if_forest(next_comment.comments(),
-                                                      valid_parent_id=self.get_comment().parent_id)
+            print self.get_comment_branch()
+            #do not actually modify comment tree since this is just a check, so deepcopy() is used
+            new_comments = self.expand_if_forest(deepcopy(next_comment.comments()),
+                                                 valid_parent_id=self.get_comment().parent_id)
             if isinstance(new_comments, CommentForest):
                 #print '(side) replies is actually a forest...correcting'
                 new_comments = new_comments.list()
@@ -283,6 +286,10 @@ class Navigator(object):
                 if self.get_comment().id not in self.comment_id_set:
                     self.deleted_comments += 1
                 return False
+            else:
+                pass
+            #print 'new comments are not empty, apprently'
+            #print new_comments   
             
         return True
     
