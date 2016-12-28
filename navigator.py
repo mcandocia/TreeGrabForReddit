@@ -57,10 +57,12 @@ class Navigator(object):
                     idx += 1
             self.comment_tree = [[] for _ in opts.pattern]
             self.comment_tree[0] = self.comments
-            only_deleted_comments = len(self.comment_tree)==0
+            only_deleted_comments = len(self.comment_tree[0])==0
             if only_deleted_comments:
                 print 'this thread only has deleted comments'
                 self.deleted_comments = self.thread.num_comments
+                self.direction = 'E'
+                self.is_active = False
         self.start_time = datetime.datetime.now(pytz.utc)
         self.data = {'thread':{},'comments':[]}
         self.position = [-1 for _ in opts.pattern]
