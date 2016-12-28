@@ -112,6 +112,7 @@ def get_thread_data(thread, opts, mode='minimal'):
             'author_flair_css_class':thread.author_flair_css_class,
             'is_distinguished':thread.distinguished is not None,
             'gold':thread.gilded,
+            'domain':thread.domain,
             'is_self':thread.is_self,
             'is_stickied':thread.stickied,
             'url':thread.url,

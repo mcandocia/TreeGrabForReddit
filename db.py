@@ -67,6 +67,7 @@ class Database(object):
             num_comments INT,
             comments_deleted INT,
             comments_navigated INT,
+            domain TEXT,
             in_contest_mode BOOLEAN,
             scrape_mode VARCHAR(10),--'thread|list|profile|minimal'
             timestamp TIMESTAMP
@@ -101,6 +102,7 @@ class Database(object):
             comments_deleted INT,
             comments_navigated INT,
             in_contest_mode BOOLEAN,
+            domain TEXT,
             scrape_mode VARCHAR(10),--'thread|list|profile|minimal'
             timestamp TIMESTAMP
             );""" % self.schema)
