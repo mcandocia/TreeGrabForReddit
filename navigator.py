@@ -24,6 +24,7 @@ class Navigator(object):
     def __init__(self, thread, opts):
         self.thread = thread
         self.opts = opts
+        self.comment_id_set = set()
         self.authors = set()
         if opts.grabauthors:
             if self.thread.author is not None:
@@ -367,11 +368,18 @@ class Navigator(object):
             self.authors.add(current_author)
         else:
             self.deleted_comments += 1
-        self.traversed_comments += 1
-        data = pod.get_comment_data(comment, self.opts, 'thread')
-        data[comment.id].update({'absolute_position':copy(self.position),
-                     'thread_begin_timestamp':self.start_time})
-        self.data['comments'].update(data)
+        if comment_id not in self.comment_id_set:
+            self.traversed_comments += 1
+            self.comment_id_set.add(comment_id)
+                    data = pod.get_comment_data(comment, self.opts, 'thread')
+                    data[comment.id].update({'absolute_position':copy(self.position),
+                                             'thread_begin_timestamp':self.start_time})
+                    self.data['comments'].update(data)
+
+        else:
+            pass
+            #print 'already got comment data for comment id %s' % comment_id
+            #print 'position: %s' % str(self.position)
         
 def inject(target, source, position):
     if position == len(target):
