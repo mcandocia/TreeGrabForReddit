@@ -12,6 +12,12 @@ import json
 import writer
 import praw_object_data as pod
 
+def check_id(comment, parent_id):
+    if isinstance(comment, MoreComments):
+        return comment.parent_id == parent_id
+    else:
+        return True
+
 class Navigator(object):
     """the navigator class will parse a Reddit thread according to the options given"""
     @pod.retry_if_broken_connection
@@ -106,28 +112,15 @@ class Navigator(object):
         print 'Done navigating thread'
         self.store_all_data()
 
-    def get_comment_branch(self):
-        return self.comment_tree[self.current_level]
+    def get_comment_branch(self, shift=0):
+        return self.comment_tree[self.current_level + shift]
 
-    def get_comment(self, pop=False):
+    def get_comment(self, pop=False, shift=0):
         if not pop:
-            #currently disabled since better method implemented
-            if len(self.get_comment_branch()) <= self.get_level_position() and False:
-                print 'underfilled branch...navigating up'
-                print self.get_comment_branch()
-                print self.current_level
-                print self.get_level_position()
-                print self.position
-                self.direction = 'U'
-                if self.current_level <> 0:
-                    self.child_counter[self.current_level - 1] -= 1
-                else:
-                    self.direction = 'E'
-                self.move_one(force_up = True)
             try:
                 #print self.get_comment_branch(), self.get_level_position()
                 #print self.current_level, self.position
-                return self.get_comment_branch()[self.get_level_position()]
+                return self.get_comment_branch(shift=shift)[self.get_level_position(shift=shift)]
             except AssertionError:
                 print sys.exc_info()
                 raise AssertionError
@@ -136,21 +129,26 @@ class Navigator(object):
             #print self.get_comment()
             #print self.position
             #print self.direction
-            return self.get_comment_branch().pop(self.get_level_position())
+            return self.get_comment_branch(shift=shift).pop(self.get_level_position(shift=shift))
 
-    def get_level_position(self):
-        return self.position[self.current_level]
+    def get_level_position(self, shift=0):
+        return self.position[self.current_level + shift]
 
     def assign_comment_branch(self, val, level_offset=0):
         self.comment_tree[self.current_level + level_offset] = val
 
-    def expand_if_forest(self, replies):
+    def expand_if_forest(self, replies, valid_parent_id=None):
         if isinstance(replies, MoreComments):
             replies = replies.comments().list()
         if isinstance(replies, CommentForest):
-            return replies.list()
+            val = replies.list()
         else:
-            return replies
+            val =  replies
+        if valid_parent_id:
+            retval = [v for v in val if check_id(val, valid_parent_id)]
+            return retval
+        else:
+            return val
     
     def move_one(self, force_up=False):
         """movement of a single space and direction-changing"""
@@ -220,8 +218,10 @@ class Navigator(object):
         for i in range(3):
             if isinstance(self.get_comment(), MoreComments):
                 comment = self.get_comment(pop=True)
+                valid_id = self.get_comment(shift=-1).id
                 self.assign_comment_branch(inject(self.get_comment_branch(),
-                                                  self.expand_if_forest(comment.comments()),
+                                                  self.expand_if_forest(comment.comments(),
+                                                                        valid_parent_id=valid_id),
                                                   self.get_level_position()))
                 retval=True
         if isinstance(self.get_comment(), MoreComments):
@@ -390,3 +390,5 @@ class testops(object):
     skip_comments = False
     user_limit = 100
     deepuser = False
+    user_delay = -1
+    thread_delay = -1
