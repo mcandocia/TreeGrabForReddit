@@ -42,9 +42,12 @@ def clean_keyboardinterrupt(f):
     return func
 
 
-def get_age(timestamp):
-    timestamp = pytz.utc.localize(timestamp)
-    now = datetime.datetime.now(pytz.utc)
+def get_age(timestamp, localize=True):
+    if localize:
+        timestamp = pytz.utc.localize(timestamp)
+        now = datetime.datetime.now(pytz.utc)
+    else:
+        now = datetime.datetime.now()
     difference = (now - timestamp).seconds
     days = float(difference) / 3600. / 24.
     return days
@@ -91,6 +94,8 @@ def select_post(subreddit_name, post_dict, opts, reddit_scraper, refreshed=False
             post = valid_posts.pop(0)
         if validate_post(post, opts):
             return post
+        else:
+            valid_posts.append(post)
     if not refreshed:
         print 'refreshing dictionary for %s' % subreddit_name
         post_dict[subreddit_name] = get_subreddit_posts(reddit_scraper.subreddit(subreddit_name),
@@ -99,6 +104,10 @@ def select_post(subreddit_name, post_dict, opts, reddit_scraper, refreshed=False
     else:
         print 'cannot find valid entries for %s' % subreddit_name
         return None
+
+@retry_if_broken_connection
+def get_subreddit(subreddit_name, scraper):
+    return scraper.subreddit(subreddit_name)
 
 @retry_if_broken_connection
 def process_thread(thread_id, opts, reddit_scraper):
@@ -147,16 +156,24 @@ def main(args):
     print 'pattern:', opts.pattern
     for thread_id in opts.ids:
         process_thread(thread_id, opts, reddit_scraper)
-    print 'finished with supplied thread ids'
+    if len(opts.ids) > 0:
+        print 'finished with supplied thread ids'
+    else:
+        print '---------------------------------'
     #go through subreddits
     counter = 0
     n_subreddits = len(opts.subreddits)
     subreddit_post_dict = {}
+    old_subreddit_post_dict = {}
     while opts.N == -1 or counter < opts.N and n_subreddits > 0:
         subreddit_name = opts.subreddits[counter % n_subreddits]
         if subreddit_name not in subreddit_post_dict or subreddit_name in ['random','randnsfw']:
-            subreddit = reddit_scraper.subreddit(subreddit_name)
-            subreddit_post_dict[subreddit_name] = get_subreddit_posts(subreddit, opts)
+            subreddit = get_subreddit(subreddit_name, reddit_scraper)
+            subreddit_post_dict[subreddit_name] = (get_subreddit_posts(subreddit, opts) + \
+                                                  old_subreddit_post_dict.get(subreddit_name, [])
+                                                   )[:15000]
+            if subreddit_name in old_subreddit_post_dict:
+                old_subreddit_post_dict.pop(subreddit_name)
         thread = select_post(subreddit_name, subreddit_post_dict, opts, reddit_scraper)
         if thread is None:
             print 'skipping %s due to insufficient posts' % subreddit_name
@@ -166,6 +183,13 @@ def main(args):
             subreddit_post_dict.pop(subreddit_name)
         counter += 1
         print 'finished with %d threads' % counter
+        #check to see if dict should be refreshed
+        if opts.post_refresh_time:
+            if opts.post_refresh_time > get_age(opts.dictionary_time, localize=False):
+                opts.dictionary_time = datetime.datetime.now()
+                if not opts.drop_old_posts:
+                    old_subreddit_post_dict = subreddit_post_dict
+                subreddit_post_dict = {}
     print 'done'
     if opts.log:
         opts.db.update_log_entry(opts, 'completed')
@@ -236,6 +260,13 @@ class options(object):
                             help='If an argument is given, then this variable indicates how many '\
                             'days should pass before a user is rescraped; if not provided, the '\
                             'user will never be updated beyond the first scrape')
+        parser.add_argument('--post-refresh-time',dest='post_refresh_time',type=float,
+                            help='Time period in days after which post lists for subreddits are'\
+                            ' forced to refresh. By default, this appends new posts to the old.')
+        parser.add_argument('--drop-old-posts',dest='drop_old_posts',action='store_true',
+                            help="If selected along with --post-refresh-time, then the "\
+                            ' lists of posts for each subreddit will reset instead of being '\
+                            'appended.')
         parser.add_argument('-du','--deepuser', action='store_true',dest='deepuser',
                             help="This option will add threads to the thread queue when scraping "\
                             'a user\'s history based on the posts they commented on/submitted. '\
@@ -348,6 +379,7 @@ class options(object):
         self.impose('age')
         self.impose('mincomments')
         self.impose('history')
+        self.impose('post_refresh_time')
         self.impose('thread_delay')
         self.impose('user_delay')
         self.impose('user_comment_limit')
@@ -357,10 +389,12 @@ class options(object):
         self.impose('limit')
         self.impose('skip_comments')
         self.impose('rank_type')
+        self.rank_type = self.rank_type[0]
         for elem in ['nouser','grabauthors','rescrape_posts','rescrape_users',
-                     'get_upvote_ratio','deepuser','log']:
+                     'get_upvote_ratio','deepuser','log', 'drop_old_posts']:
             setattr(self, elem, handle_boolean(self, args, elem))
         self.impose('N')
+        self.dictionary_time = datetime.datetime.now()
 
         #intialize database...
         #check if reset options have been triggered
