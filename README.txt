@@ -38,20 +38,22 @@ You can use --help if you want more details, but not all of the functions/featur
 
 * It takes roughly a second for each API call request. Gathering longer post and comment history of users takes up a very long time.
 
-* You can use "random" or "randnsfw" as subreddit name arguments. However, post histories are not reused for subreddits selected this way. Larger --limit arguments will noticeably increase the amount of time it takes for the code to run, especially if less data is gathered from users via thread and comment limits.
+* You can use "random" or "randnsfw" as subreddit name arguments. However, post histories are not reused for subreddits selected this way. Larger --limit arguments will noticeably increase the amount of time it takes for the code to run, especially if less data is gathered from users via thread and comment limits. These names will not be used as a filter for rescraping.
 
-* If the first value of --pattern is large, it may take a while for a larger thread to begin navigating, since it needs to weed out more non-top-level comments and expand potentially lower-level comment trees and get rid of those if they are lower-level.
+* The `--pattern` argument is no longer particularly slow due to bugfixes, but navigating a thread can take a long time for large lengths of the pattern if there are many long comment chains in a thread. 
 
 * If you want to scrape some subreddits more frequently than others, you can enter the subreddit name more than once either in the --subreddits argument or in the file referenced by the -f_subreddits argument.
 
-* IDs are scraped first, then subreddits. 
+* IDs are scraped first, then subreddits, then rescraping is done. By default, subreddits are skipped if rescraping is enabled unless `-n` is specified, since the subreddit argument is used as a filter for rescraping.
 
 * --constants is not very well implemented yet, and if you want to automate a particular scrape command, you should save the command as text and run it in a python file with an os.system() call.
+
+* You should probably do separate calls when rescraping posts/users. While you can share filters, the process can take a long time and they don't do the exact same thing.
 
 +---------------------+
 |-----OTHER NOTES-----|
 +---------------------+
 
-* The number of comments navigated per thread variable is currently broken, but it should be possible via (possibly expensive) SQL calls to use comment IDs to rederive those values more accurately.
+* The number of deleted comments in a thread is a bit buggy due to the way it's tracked. However, you can check to see how many empty author IDs/comments exist in a thread using SQL.
 
 * If you discover any other bugs (unrelated to stdout output prettiness), please open a new issue.
