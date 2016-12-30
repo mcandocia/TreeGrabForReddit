@@ -120,6 +120,9 @@ class Database(object):
             is_mod BOOLEAN,
             account_created TIMESTAMP,
             is_gold BOOLEAN,
+            shadowbanned_by_date TIMESTAMP,
+            suspended_by_date TIMESTAMP,
+            deleted_by_date TIMESTAMP,
             timestamp TIMESTAMP
             );""" % self.schema)
             
@@ -132,6 +135,9 @@ class Database(object):
             is_mod BOOLEAN,
             account_created TIMESTAMP,
             is_gold BOOLEAN,
+            shadowbanned_by_date TIMESTAMP,
+            suspended_by_date TIMESTAMP,
+            deleted_by_date TIMESTAMP,
             timestamp TIMESTAMP
             );""" % self.schema)
             '''self.execute("""CREATE INDEX IF NOT EXISTS %s.%s ON %s.users 
