@@ -34,6 +34,7 @@ class Database(object):
         self.conn = psycopg2.connect(database=database, user=username, host=host, port=port,
                                      password=password)
         self.cur = self.conn.cursor()
+        print unique_ids
         self.schema=name
         print 'started connection'
         #make schema and tables
@@ -143,9 +144,6 @@ class Database(object):
             '''self.execute("""CREATE INDEX IF NOT EXISTS %s.%s ON %s.users 
             USING id TABLESPACE %s;""" % 
             (self.schema,'user_id_index',self.schema, tablespace))'''
-            self.execute("""CREATE INDEX IF NOT EXISTS %s.%s ON %s.users 
-            USING username TABLESPACE %s;""" % (self.schema,'user_name_index',
-                                                self.schema, tablespace))
         print 'made users table'
         if unique_ids.get('comments', True):
             self.cur.execute("""CREATE TABLE IF NOT EXISTS %s.comments(
