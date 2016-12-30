@@ -13,11 +13,14 @@ import socket
 from socket import AF_INET, SOCK_DGRAM
 from argparse import ArgumentParser
 
+import rescraping
+
 from navigator import Navigator
 
 from praw_user import scraper
 
 from user_scrape import scrape_user
+from thread_process import process_thread
 
 from praw_object_data import retry_if_broken_connection
 
@@ -109,28 +112,6 @@ def select_post(subreddit_name, post_dict, opts, reddit_scraper, refreshed=False
 def get_subreddit(subreddit_name, scraper):
     return scraper.subreddit(subreddit_name)
 
-@retry_if_broken_connection
-def process_thread(thread_id, opts, reddit_scraper):
-        thread = reddit_scraper.submission(id=thread_id)
-        print thread_id#keep until certain bug issue is gone
-        start = datetime.datetime.now()
-        print '+------------------------------------------------------+'
-        print 'PROCESSING %s, id=%s, in /r/%s' % (thread.title, thread.id,
-                                                  thread.subreddit.display_name)
-        print 'created %s' % datetime.datetime.fromtimestamp(thread.created).strftime('%x %X')
-        print 'author: %s' % str(thread.author)
-        print 'score: %d, num_comments: %d' % (thread.score, thread.num_comments)
-        print ''
-        nav = Navigator(thread, opts)
-        if opts.skip_comments:
-            nav.store_thread_data()
-        else:
-            nav.navigate()
-        end = datetime.datetime.now()
-        print 'FINISHED thread w/id=%s, navigated %d comments, %d deleted'\
-            % (thread.id, nav.traversed_comments, nav.deleted_comments)
-        print 'thread scraping time: %d seconds' % (end-start).seconds
-        print '+------------------------------------------------------+'
 
 
 @clean_keyboardinterrupt
@@ -190,6 +171,15 @@ def main(args):
                 if not opts.drop_old_posts:
                     old_subreddit_post_dict = subreddit_post_dict
                 subreddit_post_dict = {}
+    if opts.N <> 0 and len(opts.subreddits):
+        print 'done with subreddit searching'
+    if opts.rescrape_threads:
+        rescraping.rescrape_threads(reddit_scraper, opts)
+        print 'done rescraping threads'
+    if opts.rescrape_users:
+        rescraping.rescrape_users(reddit_scraper, opts)
+        print 'done rescraping users'
+        
     print 'done'
     if opts.log:
         opts.db.update_log_entry(opts, 'completed')
@@ -250,13 +240,13 @@ class options(object):
                             'data is scraped. This should be disabled unless you need historical '\
                             'data, since it can affect performance for large databases and make '\
                             'queries more complicated.')
-        parser.add_argument('-td', '--thread_delay',dest='thread_delay',default=-1,nargs=1,type=int,
+        parser.add_argument('-td', '--thread-delay',dest='thread_delay',default=-1,type=int,
                             help='If an argument is given, then this variable indicates how many '\
                             'days should pass before a thread is rescraped; if not provided, the '\
                             'threads will never be updated beyond the first scrape; this value '\
                             'also controls the delay for comments to be overwritten if history is'\
                             ' disabled (default)')
-        parser.add_argument('-ud','--user-delay',dest='user_delay',default=-1,nargs=1,type=int,
+        parser.add_argument('-ud','--user-delay',dest='user_delay',default=-1,type=int,
                             help='If an argument is given, then this variable indicates how many '\
                             'days should pass before a user is rescraped; if not provided, the '\
                             'user will never be updated beyond the first scrape')
@@ -273,33 +263,33 @@ class options(object):
                             'This is generally not a good idea, as a few users can take a very '\
                             'long time to completely scrape')
         parser.add_argument('-ucl','--user-comment-limit',dest='user_comment_limit',type=int,
-                            default=100,nargs=1,
+                            default=100,
                             help='The number of comments in a user\'s history that will be'\
                             ' scraped at most.')
         parser.add_argument('-utl','--user-thread-limit',dest='user_thread_limit',type=int,
-                            default=100,nargs=1,
+                            default=100,
                             help='The number of threads in a user\'s history that will be'\
                             ' scraped at most.')
-        parser.add_argument('-l','--limit',dest='limit',default=100,nargs=1,type=int,
+        parser.add_argument('-l','--limit',dest='limit',default=100,type=int,
                             help='The number of threads in a subreddit that the parser will '\
                             'attempt to search')
-        parser.add_argument('-t','--type',dest='rank_type',default='new',nargs=1,
+        parser.add_argument('-t','--type',dest='rank_type',default='new',
                             choices=['top','hot','new','controversial','rising'],
                             help="the type of ranking used when querying from subreddits")
-        parser.add_argument('-c','--constants',nargs=1,
+        parser.add_argument('-c','--constants',
                             help="a filename for a python file containing a dictionary named "\
                             '"kwargs". This dictionary will be used as an intializer for the '\
                             'arguments given via command line (and will be overwritten by any '\
-                            'additions')
+                            'additions. Currently experimental.')
         parser.add_argument('--nouser',action='store_true',dest='nouser',
                             help='User information is not scraped if enabled')
-        parser.add_argument('--grab_authors',action='store_true',dest='grabauthors',
+        parser.add_argument('--grab-authors',action='store_true',dest='grabauthors',
                             help='Authors are scraped in addition to users of threads')
-        parser.add_argument('--rescrape_posts',action='store_true',dest='rescrape_posts',
+        parser.add_argument('--rescrape-threads',action='store_true',dest='rescrape_threads',
                             help='Rescrape all posts that have been collected')
-        parser.add_argument('--rescrape_users',action='store_true',dest='rescrape_users',
+        parser.add_argument('--rescrape-users',action='store_true',dest='rescrape_users',
                             help='Rescrape all users that have been collected')
-        parser.add_argument('-n',nargs=1,default=-1,dest='N',
+        parser.add_argument('-n',default=-1,dest='N',
                             help="The number of posts that the scraper will collect. If <0, then"\
                             " posts will be collected until the script is halted")
         parser.add_argument('--skip-comments',action='store_true',dest='skip_comments',
@@ -317,6 +307,22 @@ class options(object):
         parser.add_argument('--mincomments', dest='mincomments', default=None,type=int,
                             help="Set minimum number of comments for a thread to be collected via"\
                             " subreddit searching.")
+        parser.add_argument('--full-rescraping', dest='full_rescraping',action='store_true',
+                            help="If used, then rescraping via --rescrape_users or "\
+                            "--rescrape_threads will include all posts/comments, not just ones "\
+                            "that were originally encountered froms scraping through threads. "\
+                            "This is the easiest way to get random posts that go far back in the "\
+                            "history of a subreddit.")
+        parser.add_argument('--avoid-full-threads', dest='avoid_full_threads',action='store_true',
+                            help="If used, then rescraping via --rescrape_threads will not include"\
+                            " threads that had a full comment-history scrape. It will only include"\
+                            " threads encountered in comment and thread histories of user's "\
+                            "profiles.")
+        parser.add_argument('--rescrape-with-comment-histories',action='store_true',
+                            dest='rescrape_with_comment_histories',
+                            help="Uses comment histories to gather thread IDs. Comment timestamp "\
+                            "is used for age-based validation. Other forms of validation are "\
+                            "either implied or ignored due to the nature of this argument.")
         print 'added arguments'
         args = parser.parse_args()
         print 'parsed arguments'
@@ -389,9 +395,11 @@ class options(object):
         self.impose('limit')
         self.impose('skip_comments')
         self.impose('rank_type')
-        self.rank_type = self.rank_type[0]
-        for elem in ['nouser','grabauthors','rescrape_posts','rescrape_users',
-                     'get_upvote_ratio','deepuser','log', 'drop_old_posts']:
+        self.rank_type = self.rank_type
+        for elem in ['nouser','grabauthors','rescrape_threads','rescrape_users',
+                     'get_upvote_ratio','deepuser','log', 'drop_old_posts',
+                     'full_rescraping','avoid_full_threads',
+                     'rescrape_with_comment_histories']:
             setattr(self, elem, handle_boolean(self, args, elem))
         self.impose('N')
         self.dictionary_time = datetime.datetime.now()
@@ -430,6 +438,10 @@ class options(object):
             logging = True
             logopts = self
             self.db.add_log_entry(self)
+        #if rescraping is enabled, subreddit scraping will be either
+        #of limited N or suppressed (default)
+        if self.rescrape_users or self.rescrape_threads:
+            self.N = max(0, self.N)
 
         print 'intialized database'
     
