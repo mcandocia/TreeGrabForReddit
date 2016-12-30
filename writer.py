@@ -29,8 +29,10 @@ def write_user(data, opts):
         else:
             can_update = True
             if history_mode:
+                print 'appending entry...'
                 db.insert_user(data)
             else:
+                print 'updating entry...'
                 db.update_user(data)
     except:
         print sys.exc_info()
@@ -91,8 +93,10 @@ def write_comment(data, opts):
             return False
         else:
             if history_mode:
+                #print 'appending entry...'
                 db.insert_comment(data)
             else:
+                #print 'updating...'
                 db.update_comment(data)
     except TypeError:
         print data
