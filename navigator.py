@@ -359,8 +359,8 @@ class Navigator(object):
                     #for suspended users, the Redditor object has no ID, though a user can be found
                     #print 'user %s has been suspended' %author.name
                     self.author_data['%%' + str(author.name)] = pod.get_user_data(author, self.opts)
-        sys.stdout.write( 'processed %d/%d authors...\r' % (n_authors, n_authors))
-        sys.stdout.flush()
+            sys.stdout.write( 'processed %d/%d authors...\r' % (n_authors, n_authors))
+            sys.stdout.flush()
         #write thread data
         print ''
         print 'writing thread data'
