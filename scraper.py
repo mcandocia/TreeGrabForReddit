@@ -240,13 +240,13 @@ class options(object):
                             'data is scraped. This should be disabled unless you need historical '\
                             'data, since it can affect performance for large databases and make '\
                             'queries more complicated.')
-        parser.add_argument('-td', '--thread-delay',dest='thread_delay',default=-1,type=int,
+        parser.add_argument('-td', '--thread-delay',dest='thread_delay',default=-1,type=float,
                             help='If an argument is given, then this variable indicates how many '\
                             'days should pass before a thread is rescraped; if not provided, the '\
                             'threads will never be updated beyond the first scrape; this value '\
                             'also controls the delay for comments to be overwritten if history is'\
                             ' disabled (default)')
-        parser.add_argument('-ud','--user-delay',dest='user_delay',default=-1,type=int,
+        parser.add_argument('-ud','--user-delay',dest='user_delay',default=-1,type=float,
                             help='If an argument is given, then this variable indicates how many '\
                             'days should pass before a user is rescraped; if not provided, the '\
                             'user will never be updated beyond the first scrape')
