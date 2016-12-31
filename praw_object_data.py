@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 import time
 import sys
 from psycopg2 import InternalError, ProgrammingError
@@ -14,11 +14,23 @@ def localize(obj):
     else:
         return pytz.utc.localize(obj)
 
+def check_time(init_time, time_delta):
+    if datetime.datetime.now() > init_time + timedelta(hours = time_delta):
+        return True
+    return False
+
 #update this over time with appropriate errors; monitor while it's relaxed
 def retry_if_broken_connection(f):
     def func(*args, **kwargs):
         while True:
             try:
+                for arg in args:
+                    #will only ever apply to options class
+                    if hasattr(arg, 'init_time'):
+                        if check_time(arg.init_time, arg.timer):
+                            if arg.log:
+                                arg.db.update_log_entry(arg, 'Timer')
+                            sys.exit()
                 return f(*args, **kwargs)
             except InternalError, ProgrammingError:
                 print sys.exc_info()
