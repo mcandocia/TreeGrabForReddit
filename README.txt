@@ -10,6 +10,8 @@ The script is currently new and being debugged; here's how you can run it:
 4. Edit praw_user.py to reflect your Reddit developer account information.
 5. Use the command line to run the code.
 
+Also, see http://maxcandocia.com/blog/2016/Dec/30/scraping-reddit-data/ for example use cases.
+
 Right now the scraper (if run from scraper.py) can run through files if you manually give the post IDs and/or you supply a list of subreddits to cyclically collect data from. You can also supply a list of user names to scrape through beforehand.
 
 The basic command format is
@@ -23,7 +25,7 @@ You can use --help if you want more details, but not all of the functions/featur
 +--------------------+
 
 1. PostgreSQL (anything >=9.1 will work)
-2. Python >= 2.7.6
+2. Python >= 2.7.6 (must be 2.x.x)
    * psycopg2 (install after PostgreSQL)
    * praw
    * pytz
@@ -35,6 +37,8 @@ You can use --help if you want more details, but not all of the functions/featur
 +--------------------+
 
 * Reddit returns query results in groups of 100 (i.e., per API call). Unless you specifically want less data, it's recommended to have --user_thread_limit, --user_comment_limit, and --limit be integer multiples of 100.
+
+* The --history parameter should have the same exact arguments each time you call a particular schema, since the presence of primary keys in the tables is based upon those.
 
 * It takes roughly a second for each API call request. Gathering longer post and comment history of users takes up a very long time.
 
