@@ -323,6 +323,11 @@ class options(object):
                             help="Uses comment histories to gather thread IDs. Comment timestamp "\
                             "is used for age-based validation. Other forms of validation are "\
                             "either implied or ignored due to the nature of this argument.")
+        parser.add_argument('--timer',dest='timer',type=float,
+                            help="After approx. this amount of time, in hours, the program will "\
+                            "stop.")
+        parser.add_argument('--verbose','-v',dest='verbose',action='store_true',
+                            help="Enabling this will increase the text output during scraping.")
         print 'added arguments'
         args = parser.parse_args()
         print 'parsed arguments'
@@ -395,11 +400,12 @@ class options(object):
         self.impose('limit')
         self.impose('skip_comments')
         self.impose('rank_type')
+        self.impose('timer')
         self.rank_type = self.rank_type
         for elem in ['nouser','grabauthors','rescrape_threads','rescrape_users',
                      'get_upvote_ratio','deepuser','log', 'drop_old_posts',
                      'full_rescraping','avoid_full_threads',
-                     'rescrape_with_comment_histories']:
+                     'rescrape_with_comment_histories','verbose']:
             setattr(self, elem, handle_boolean(self, args, elem))
         self.impose('N')
         self.dictionary_time = datetime.datetime.now()
@@ -438,6 +444,8 @@ class options(object):
             logging = True
             logopts = self
             self.db.add_log_entry(self)
+        if self.timer:
+            self.init_time = datetime.datetime.now()
         #if rescraping is enabled, subreddit scraping will be either
         #of limited N or suppressed (default)
         if self.rescrape_users or self.rescrape_threads:

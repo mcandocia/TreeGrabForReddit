@@ -24,15 +24,18 @@ def write_user(data, opts):
             db.insert_user(data)
         elif opts.user_delay == -1 or ((data['timestamp'] - last_time).seconds*seconds_to_days < \
                                      opts.user_delay):
-            print 'already have %s in database' % data['username']
+            if opts.verbose:
+                print 'already have %s in database' % data['username']
             return False
         else:
             can_update = True
             if history_mode:
-                print 'appending entry...'
+                if opts.verbose:
+                    print 'appending entry...'
                 db.insert_user(data)
             else:
-                print 'updating entry...'
+                if opts.verbose:
+                    print 'updating entry...'
                 db.update_user(data)
     except:
         print sys.exc_info()
