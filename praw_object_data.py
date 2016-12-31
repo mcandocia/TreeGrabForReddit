@@ -5,6 +5,7 @@ from psycopg2 import InternalError, ProgrammingError
 from prawcore.exceptions import NotFound
 from prawcore.exceptions import RequestException
 from prawcore.exceptions import Forbidden
+from praw.models.reddit.submission import Submission
 
 import pytz
 
@@ -25,6 +26,9 @@ def retry_if_broken_connection(f):
         while True:
             try:
                 for arg in args:
+                    #hasattr() on submissions is very slow
+                    if isinstance(arg, Submission):
+                        continue
                     #will only ever apply to options class
                     if hasattr(arg, 'init_time'):
                         if check_time(arg.init_time, arg.timer):
@@ -56,7 +60,7 @@ def get_user_data(user, opts, mode='thread'):
         comment_history = user.comments.new(limit=opts.user_comment_limit)
         comments = {}
         try:
-            for comment in comment_history:
+            for i, comment in enumerate(comment_history):
                 comments.update(get_comment_data(comment, opts, mode='minimal',
                                                  author_id = data['id']))
         except Forbidden:
@@ -67,7 +71,7 @@ def get_user_data(user, opts, mode='thread'):
         post_history = user.submissions.new(limit=opts.user_thread_limit)
         threads = {}
         try:
-            for post in post_history:
+            for i, post in enumerate(post_history):
                 threads.update(get_thread_data(post, opts, mode='minimal'))
         except Forbidden:
             print user.name
