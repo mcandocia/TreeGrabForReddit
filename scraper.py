@@ -146,7 +146,7 @@ def main(args):
     n_subreddits = len(opts.subreddits)
     subreddit_post_dict = {}
     old_subreddit_post_dict = {}
-    while opts.N == -1 or counter < opts.N and n_subreddits > 0:
+    while opts.N == -1 or (counter < opts.N and n_subreddits > 0):
         subreddit_name = opts.subreddits[counter % n_subreddits]
         if subreddit_name not in subreddit_post_dict or subreddit_name in ['random','randnsfw']:
             subreddit = get_subreddit(subreddit_name, reddit_scraper)
@@ -289,7 +289,7 @@ class options(object):
                             help='Rescrape all posts that have been collected')
         parser.add_argument('--rescrape-users',action='store_true',dest='rescrape_users',
                             help='Rescrape all users that have been collected')
-        parser.add_argument('-n',default=-1,dest='N',
+        parser.add_argument('-n',default=-1,dest='N',type=int,
                             help="The number of posts that the scraper will collect. If <0, then"\
                             " posts will be collected until the script is halted")
         parser.add_argument('--skip-comments',action='store_true',dest='skip_comments',
