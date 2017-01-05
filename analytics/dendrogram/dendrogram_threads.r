@@ -4,21 +4,21 @@ library(dplyr)
 
 setwd('/hddl/workspace/TreeGrabForReddit/analytics/dendrogram')
 
-df1 = read.csv('data/politics_summary.csv')
+tdf1 = read.csv('data/politics_summary_threads.csv')
 
 #let's see the difference in dendrograms if count > 0 is used vs. pos_count > 1 and neg_count > 1 are used
 
-df_signed = rbind(
-	      df1 %>% filter(pos_count > 0) %>% 
+tdf_signed = rbind(
+	      tdf1 %>% filter(pos_count > 0) %>% 
 		select(username, subreddit) %>% 
 		mutate(subreddit=factor(paste('+',as.character(subreddit))))
 	      , 
-	      df1 %>% filter(neg_count > 0) %>% 
+	      tdf1 %>% filter(neg_count > 0) %>% 
 		select(username, subreddit) %>% 
 		mutate(subreddit=factor(paste('-',as.character(subreddit))))
 	      )
 
-df_unsigned = df1 %>% filter(count > 0) %>% 
+tdf_unsigned = tdf1 %>% filter(count > 0) %>% 
 		select(username, subreddit) 
 ##jaccard index is reliable, though biased towards clustering subreddits of similar sizes
 
@@ -40,40 +40,33 @@ jaccard_index = function(data){
   return(jaccard_matrix)
 }
 
-unsigned_dissimilarity = 1 - jaccard_index(df_unsigned)
-signed_dissimilarity = 1 - jaccard_index(df_signed)
+tunsigned_dissimilarity = 1 - jaccard_index(tdf_unsigned)
+tsigned_dissimilarity = 1 - jaccard_index(tdf_signed)
 
-unsigned_dist = as.dist(unsigned_dissimilarity)
-signed_dist = as.dist(signed_dissimilarity)
+tunsigned_dist = as.dist(tunsigned_dissimilarity)
+tsigned_dist = as.dist(tsigned_dissimilarity)
 
-signed_clust = hclust(signed_dist, method='ward.D')
-unsigned_clust = hclust(unsigned_dist, method='ward.D')
+tsigned_clust = hclust(tsigned_dist, method='ward.D')
+tunsigned_clust = hclust(tunsigned_dist, method='ward.D')
 
 #note that all signed elements are close to each other, indicating that differentiation via sign is unimportant
 #exception in the case of communism and debatecommunism, where sign separates those two rather than subreddit
-plot(as.phylo(signed_clust), type='fan', 
-  main=bquote(atop('Similarity Clustering of Political Subreddits Using Comments and Their Signs',atop(
-		     'similarity based on users posting across multiple subreddits'))),cex=0.8,
-		     tip.color = c('#DD8811','#5511DD')[1+grepl('^-.*',signed_clust$labels)],
-)
+plot(as.phylo(tsigned_clust), type='fan', main='Signed Clustering of Subreddits',cex=0.8)
 
-legend('topright',legend=c("Positive","Negative"),
-       fill=c('#DD8811','#5511DD'),bty='n',title='Comment Score')
-
-clusts = cutree(unsigned_clust, 14)
-ccolors = brewer.pal(8,'Dark2')
-plot(as.phylo(unsigned_clust), type='fan', 
-	main=bquote(atop('Similarity Clustering of Political Subreddits Using Comments',atop(
-			  'similarity based on users posting across multiple subreddits'))), cex=0.9,
-tip.color=ccolors[clusts %% 8 + 1])
+tclusts = cutree(tunsigned_clust, 14)
+ccolors = brewer.pal(10,'Dark2')
+plot(as.phylo(tunsigned_clust), type='fan', main=bquote(atop('Similarity Clustering of Political Subreddits Using Submissions',
+							    atop('based on users who start threads across subreddits'
+							    ,atop('only submissions with score '>=2)))), 
+							    cex=0.9, tip.color=ccolors[tclusts %% 10 + 1])
 
 ##try different clustering algorithm
 
-signed_clust2 = hclust(signed_dist, method='single')
-unsigned_clust2 = hclust(unsigned_dist, method='single')
+tsigned_clust2 = hclust(tsigned_dist, method='single')
+tunsigned_clust2 = hclust(tunsigned_dist, method='single')
 
 #results are much worse...
-plot(as.phylo(unsigned_clust2), type='fan', main='Similarity Clustering of Political Subreddits', cex=0.9)
+plot(as.phylo(tunsigned_clust2), type='fan', main='Similarity Clustering of Political Subreddits', cex=0.9)
 
 ##let's try the Rand Index
 rand_index = function(data){
@@ -152,17 +145,17 @@ adjusted_rand_index = function(data){
 ##adjusted rand index may work better
 ##it looks better, but jaccard seems to work best, despite size differences
 ##perhaps clustering by generative model loadings would work better
-unsigned_dissimilarity_arand = 1 - adjusted_rand_index(df_unsigned)
-signed_dissimilarity_arand = 1 - adjusted_rand_index(df_signed)
+tunsigned_dissimilarity_arand = 1 - adjusted_rand_index(tdf_unsigned)
+#tsigned_dissimilarity_arand = 1 - adjusted_rand_index(tdf_signed)
 
-unsigned_dist_arand = as.dist(unsigned_dissimilarity_arand)
-signed_dist_arand = as.dist(signed_dissimilarity_arand)
+tunsigned_dist_arand = as.dist(tunsigned_dissimilarity_arand)
+#tsigned_dist_arand = as.dist(tsigned_dissimilarity_arand)
 
-signed_clust_arand = hclust(signed_dist_arand, method='ward.D2')
-unsigned_clust_arand = hclust(unsigned_dist_arand, method='ward.D')
+#tsigned_clust_arand = hclust(tsigned_dist_arand, method='ward.D2')
+tunsigned_clust_arand = hclust(tunsigned_dist_arand, method='ward.D')
 
-plot(as.phylo(signed_clust_arand), type='fan', main='Signed Clustering of Subreddits')
+#plot(as.phylo(tsigned_clust_arand), type='fan', main='Signed Clustering of Subreddits')
 
-clusts_arand = cutree(unsigned_clust_arand, 13)
-plot(as.phylo(unsigned_clust_arand), type='fan', main='Similarity Clustering of Political Subreddits', cex=0.9,
-tip.color=ccolors[clusts_arand %% 8 + 1])
+tclusts_arand = cutree(tunsigned_clust_arand, 13)
+plot(as.phylo(tunsigned_clust_arand), type='fan', main='Similarity Clustering of Political Subreddits', cex=0.9,
+tip.color=ccolors[tclusts_arand %% 8 + 1])
