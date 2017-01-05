@@ -21,6 +21,7 @@ from praw_user import scraper
 
 from user_scrape import scrape_user
 from thread_process import process_thread
+from moderator_scrape import scrape_moderators
 
 from praw_object_data import retry_if_broken_connection
 
@@ -171,6 +172,9 @@ def main(args):
                 if not opts.drop_old_posts:
                     old_subreddit_post_dict = subreddit_post_dict
                 subreddit_post_dict = {}
+    #moderator rescraping
+    if opts.moderators:
+        scrape_moderators(opts, reddit_scraper)
     if opts.N <> 0 and len(opts.subreddits):
         print 'done with subreddit searching'
     if opts.rescrape_threads:
@@ -219,7 +223,8 @@ class options(object):
         parser.add_argument('--man-user-thread-limit', dest='man_user_thread_limit',type=int,
                             help="If user IDs are supplied, this overrides --user-thread-limit"\
                             " for those IDs.")
-        parser.add_argument('-fu','--f-users', dest='f_users',nargs='+')
+        parser.add_argument('-fu','--f-users', dest='f_users',nargs='+',
+                            help="A filename containing line-separated usernames to be scraped.")
         parser.add_argument('--f-ids',dest='f_thread_ids', nargs='+',
                             help='a list of filenames with line-separated thread IDs to be scraped'\
                             ' sequentially')
@@ -323,6 +328,21 @@ class options(object):
                             help="Uses comment histories to gather thread IDs. Comment timestamp "\
                             "is used for age-based validation. Other forms of validation are "\
                             "either implied or ignored due to the nature of this argument.")
+        parser.add_argument('--moderators',dest='moderators',action='store_true',
+                            help="If selected, the moderators of subreddits will be gathered in "\
+                            "the .moderators table. Additional options in --moderators-all and "\
+                            "--repeat-moderator-subreddits.")
+        parser.add_argument('--moderators-all',dest='moderators_all',action='store_true',
+                            help="Will use all subreddits gathered in database instead of just "\
+                            "those in the subreddits list. Prioritizes those in subreddit "\
+                            "list, though.")
+        parser.add_argument('--scrape-moderators',dest='scrape_moderators',action='store_true',
+                            help='Will scrape moderators comment and thread history if '\
+                            '--moderators is selected.')
+        parser.add_argument('--repeat-moderator-subreddits',dest="repeat_moderator_subreddits",
+                            action='store_true',
+                            help="Will regather moderator info for subreddits in case they have "\
+                            "already been gathered (instead of skipping them).")
         parser.add_argument('--timer',dest='timer',type=float,
                             help="After approx. this amount of time, in hours, the program will "\
                             "stop.")
@@ -405,7 +425,9 @@ class options(object):
         for elem in ['nouser','grabauthors','rescrape_threads','rescrape_users',
                      'get_upvote_ratio','deepuser','log', 'drop_old_posts',
                      'full_rescraping','avoid_full_threads',
-                     'rescrape_with_comment_histories','verbose']:
+                     'rescrape_with_comment_histories','verbose',
+                     'moderators','moderators_all','repeat_moderator_subreddits',
+                     'scrape_moderators']:
             setattr(self, elem, handle_boolean(self, args, elem))
         self.impose('N')
         self.dictionary_time = datetime.datetime.now()
