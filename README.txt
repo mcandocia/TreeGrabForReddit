@@ -24,7 +24,7 @@ You can use --help if you want more details, but not all of the functions/featur
 |----REQUIREMENTS----|
 +--------------------+
 
-1. PostgreSQL (anything >=9.1 will work)
+1. PostgreSQL (anything >=9.4 will work)
 2. Python >= 2.7.6 (must be 2.x.x)
    * psycopg2 (install after PostgreSQL)
    * praw
