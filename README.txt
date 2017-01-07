@@ -54,6 +54,8 @@ You can use --help if you want more details, but not all of the functions/featur
 
 * You should probably do separate calls when rescraping posts/users. While you can share filters, the process can take a long time and they don't do the exact same thing.
 
+* You can scrape subreddits now, as well as moderator information.
+
 +---------------------+
 |-----OTHER NOTES-----|
 +---------------------+
