@@ -27,7 +27,7 @@ def scrape_subreddits(opts, scraper):
             UNION ALL
             SELECT subreddit FROM %s.threads) t1
             GROUP BY subreddit HAVING count(*) > %%s;""" % (opts.db.schema, opts.db.schema),
-                            min_occurrences)
+                            [min_occurrences])
         subreddit_list.extend([x[0] for x in opts.db.fetchall()])
     subreddit_counter = 0
     subreddit_set = set()
@@ -46,7 +46,7 @@ def scrape_subreddits(opts, scraper):
         scrape_subreddit_info(subreddit_text, opts, scraper)
         subreddit_counter += 1
         subreddit_set.add(subreddit_text)
-        if subreddit_counter % 50 > 0:
+        if subreddit_counter % 50 == 0:
             print 'gone through %s subreddits' % subreddit_counter
     print 'went through %s subreddits' % subreddit_counter
     print 'done scraping subreddits'
