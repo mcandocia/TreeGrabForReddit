@@ -86,7 +86,7 @@ class Navigator(object):
         self.direction = 'B'
         self.get_thread_info()
         self.is_active = True
-        if self.thread.num_comments==0 or only_deleted_comments:
+        if self.thread.num_comments==0 or only_deleted_comments or opts.skip_comments:
             self.direction='E'
             self.move_one()
             self.is_active=False
@@ -274,7 +274,7 @@ class Navigator(object):
         #check if next is MoreComments and check if it's blank
         next_comment = self.get_comment_branch()[self.get_level_position() + 1]
         if isinstance(next_comment, MoreComments):
-            print self.get_comment_branch()
+            #print self.get_comment_branch()
             #do not actually modify comment tree since this is just a check, so deepcopy() is used
             new_comments = self.expand_if_forest(deepcopy(next_comment.comments()),
                                                  valid_parent_id=self.get_comment().parent_id)
@@ -339,18 +339,22 @@ class Navigator(object):
         if not self.opts.nouser:
             n_authors = len(self.authors)
             print 'scraping %d authors' % n_authors
+            skip_counter = 0
             for i, author in enumerate(self.authors):
                 if i > 0 and i % 1 == 0:
                     sys.stdout.write( 'processed %d/%d authors...\r' % (i, n_authors))
                     sys.stdout.flush()
                 try:
                     author_id = author.id
+                    if not self.opts.db.check_user_update_time(author_id, self.opts):
+                        skip_counter += 1
+                        continue
                     #print 'processing author: %s' % author.name
                     previous_time = pod.localize(self.opts.db.get_user_update_time(author_id))
                     if previous_time is None:
                         self.author_data[author.id] = pod.get_user_data(author, self.opts)
                     elif float((datetime.now(pytz.utc) - previous_time).\
-                               seconds)/(3600.*24) > opts.user_delay:
+                               seconds)/(3600.*24) > self.opts.user_delay:
                         self.author_data[author.id] = pod.get_user_data(author, self.opts)
                 except NotFound:
                     #will store data in proper format for shadowbanned users
@@ -363,6 +367,7 @@ class Navigator(object):
             sys.stdout.flush()
         #write thread data
         print ''
+        print 'skipped %s authors from delays' % skip_counter
         print 'writing thread data'
         self.data['thread'][self.thread.id].update({'comments_deleted':self.deleted_comments,
                                                     'comments_navigated':self.traversed_comments})
