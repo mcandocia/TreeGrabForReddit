@@ -1,5 +1,7 @@
 import praw_object_data as pod
 from writer import write_subreddit
+from prawcore.exceptions import Forbidden
+import sys
 
 #scrape_subreddits
 #scrape_subreddits_in_db
@@ -43,12 +45,20 @@ def scrape_subreddits(opts, scraper):
                 break
             continue
         #check subreddit_delay
-        scrape_subreddit_info(subreddit_text, opts, scraper)
+        try:
+            scrape_subreddit_info(subreddit_text, opts, scraper)
+        except Forbidden:
+            print '/r/%s is no longer available' % subreddit_text
+            subreddit_list.pop(subreddit_counter % n_subreddits)
+            n_subreddits -=1
+            if len(subreddit_list) == 0:
+                break
+            continue
         subreddit_counter += 1
         subreddit_set.add(subreddit_text)
         if subreddit_counter % 50 == 0:
-            print 'gone through %s subreddits' % subreddit_counter
-    print 'went through %s subreddits' % subreddit_counter
+            print 'gone through %s subreddits out of %s' % (subreddit_counter, n_subreddits)
+    print 'went through %s subreddits out of %s' % (subreddit_counter, n_subreddits)
     print 'done scraping subreddits'
 
 @pod.retry_if_broken_connection
@@ -58,7 +68,8 @@ def scrape_subreddit_info(text, opts, scraper):
             print 'too recently scraped /r/%s' % text
         return False
     if opts.verbose:
-        print 'scraping /r/%s' % text
+        sys.stdout.write( 'scraping /r/%s\r' % text)
+        sys.stdout.flush()
     subreddit = scraper.subreddit(text)
     data = pod.get_subreddit_data(subreddit, opts)
     write_subreddit(data, opts)
