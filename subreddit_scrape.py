@@ -38,6 +38,7 @@ def scrape_subreddits(opts, scraper):
             if opts.verbose:
                 print 'skipping /r/%s' % subreddit_text
             subreddit_list.pop(subreddit_counter % n_subreddits)
+            n_subreddits -= 1
             if len(subreddit_list) == 0:
                 break
             continue
