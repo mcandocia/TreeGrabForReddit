@@ -30,11 +30,11 @@ def write_user(data, opts):
         else:
             can_update = True
             if history_mode:
-                if opts.verbose:
+                if opts.verbose and False:
                     print 'appending entry...'
                 db.insert_user(data)
             else:
-                if opts.verbose:
+                if opts.verbose and False:
                     print 'updating entry...'
                 db.update_user(data)
     except:
@@ -107,3 +107,15 @@ def write_comment(data, opts):
         db.insert_comment(data)
     db.commit()
     return True
+
+def write_subreddit(data, opts):
+    history_mode = 'subreddits' in opts.history
+    #print data
+    db = opts.db
+    #subreddit has already passed the validation requirements
+    last_update = db.get_subreddit_update_time(data['subreddit'])
+    if history_mode or last_update==None:
+        db.insert_subreddit(data)
+    else:
+        db.update_subreddit(data)
+    db.commit()
