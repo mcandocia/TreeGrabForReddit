@@ -231,7 +231,7 @@ class Database(object):
         else:
             now = datetime.datetime.now(pytz.utc)
             update_time = pytz.utc.localize(update_time)
-            if (now - update_time).seconds < 3600*24 * opts.user_delay:
+            if (now - update_time).seconds < 3600*24 * opts.user_delay - (now-update_time).days:
                 return False
             return True
         
@@ -254,7 +254,7 @@ class Database(object):
             return None
 
     def check_subreddit_update_time(self, subreddit_text, opts):
-        update_time = self.get_user_update_time(subreddit_text)
+        update_time = self.get_subreddit_update_time(subreddit_text)
         if not update_time:
             return True
         elif opts.subreddit_delay == -1:
@@ -262,7 +262,8 @@ class Database(object):
         else:
             now = datetime.datetime.now(pytz.utc)
             update_time = pytz.utc.localize(update_time)
-            if (now - update_time).seconds < 3600*24 * opts.subreddit_delay:
+            if (now - update_time).seconds < 3600*24 * opts.subreddit_delay - \
+               (now-update_time).days:
                 return False
             return True
 
