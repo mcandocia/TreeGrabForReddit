@@ -6,6 +6,9 @@ from prawcore.exceptions import NotFound
 from prawcore.exceptions import RequestException
 from prawcore.exceptions import Forbidden
 from praw.models.reddit.submission import Submission
+from praw.models.reddit.comment import Comment
+from praw.models.reddit.subreddit import Subreddit
+import json
 
 import pytz
 
@@ -25,9 +28,10 @@ def retry_if_broken_connection(f):
     def func(*args, **kwargs):
         while True:
             try:
+                #timer check
                 for arg in args:
                     #hasattr() on submissions is very slow
-                    if isinstance(arg, Submission):
+                    if isinstance(arg, (Submission, Comment)):
                         continue
                     #will only ever apply to options class
                     if hasattr(arg, 'init_time'):
@@ -190,3 +194,25 @@ def get_comment_data(comment, opts, mode='minimal', author_id=None):
         return {}
     return {comment.id:data}
 
+@retry_if_broken_connection
+def get_subreddit_data(subreddit, opts):
+    now = datetime.now()
+    try:
+        data = {
+            'subreddit':subreddit.display_name,
+            'accounts_active':subreddit.accounts_active,
+            'created':datetime.fromtimestamp(subreddit.created_utc),
+            'description':subreddit.description,
+            'rules':json.dumps(subreddit.rules()['rules']),
+            'submit_text':subreddit.submit_text,
+            'submit_link_label':subreddit.submit_link_label,
+            'subreddit_type':subreddit.subreddit_type,
+            'subscribers':subreddit.subscribers,
+            'title':subreddit.title,
+            'timestamp':now
+            }
+    except NotFound:
+        print sys.exc_info()
+        print 'subreddit data not found'
+        return {}
+    return data

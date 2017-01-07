@@ -29,7 +29,7 @@ class Database(object):
     have a sanitized schema name."""
     dbtype = 'postgres'
     def __init__(self, name=default_schema,
-                 unique_ids={'comments':True,'users':True,'threads':True}):
+                 unique_ids={'comments':True,'users':True,'threads':True,'subreddits':True}):
         #initialize connection
         self.conn = psycopg2.connect(database=database, user=username, host=host, port=port,
                                      password=password)
@@ -192,10 +192,12 @@ class Database(object):
             scrape_mode VARCHAR(10),--'sub|minimal'
             timestamp TIMESTAMP
             );""" % self.schema)
+        self.make_subreddit_table(unique_ids)
         print 'made comments table'
         self.usertable = '%s.users' % self.schema
         self.threadtable = '%s.threads' % self.schema
         self.commenttable = '%s.comments'% self.schema
+        self.create_moderator_table()
         self.commit()
         print 'committed initial config'
         #create indexes
@@ -219,7 +221,20 @@ class Database(object):
             return self.fetchall()[0][0]
         except:
             return None
-
+        
+    def check_user_update_time(self, user_id, opts):
+        update_time = self.get_user_update_time(user_id)
+        if not update_time:
+            return True
+        elif opts.user_delay == -1:
+            return False
+        else:
+            now = datetime.datetime.now(pytz.utc)
+            update_time = pytz.utc.localize(update_time)
+            if (now - update_time).seconds < 3600*24 * opts.user_delay:
+                return False
+            return True
+        
     def get_thread_update_time(self, thread_id):
         try:
             self.execute(("SELECT max(timestamp) FROM %s.threads WHERE" % self.schema) +\
@@ -228,6 +243,28 @@ class Database(object):
         except:
             print sys.exc_info()
             return None
+
+    def get_subreddit_update_time(self, subreddit_text):
+        try:
+            self.execute(("SELECT max(timestamp) FROM %s.subreddits WHERE" % self.schema) +\
+                         " subreddit=%s",[subreddit_text])
+            return self.fetchall()[0][0]
+        except:
+            print sys.exc_info()
+            return None
+
+    def check_subreddit_update_time(self, subreddit_text, opts):
+        update_time = self.get_user_update_time(subreddit_text)
+        if not update_time:
+            return True
+        elif opts.subreddit_delay == -1:
+            return False
+        else:
+            now = datetime.datetime.now(pytz.utc)
+            update_time = pytz.utc.localize(update_time)
+            if (now - update_time).seconds < 3600*24 * opts.subreddit_delay:
+                return False
+            return True
 
     def update_user(self, data):
         cols = data.keys()
@@ -269,6 +306,22 @@ class Database(object):
                     ' WHERE id=\'%s\'' % data['id']
         self.execute(statement, make_update_data(cols, values))
 
+    def insert_subreddit(self, data):
+        cols = data.keys()
+        values = [data[key] for key in cols]
+        statement = ('INSERT INTO %s' % self.schema) + '.subreddits(%s) values %s;'
+        parsed_statement = self.cur.mogrify(statement, (AsIs(','.join(cols)), tuple(values)))
+        self.execute(parsed_statement)
+
+    def update_subreddit(self, data):
+        cols = data.keys()
+        values = [data[key] for key in cols]
+        statement = ('UPDATE %s' % self.schema) + '.subreddits SET ' + \
+                    make_update_template(values)+ \
+                    ' WHERE subreddit=\'%s\'' % data['subreddit']
+        self.execute(statement, make_update_data(cols, values))
+
+
     def commit(self):
         self.conn.commit()
         return True
@@ -289,10 +342,42 @@ class Database(object):
             print 'dropped %s' % table
         self.execute("DROP INDEX IF EXISTS %s.user_name_index;" % self.schema)
         self.execute("DROP TABLE IF EXISTS %s.log;" % self.schema)
+        self.execute("DROP TABLE IF EXISTS %s.subreddits;" % self.schema)
+        self.execute("DROP TABLE IF EXISTS %s.moderators;" % self.schema)
         if not exclude_schema:
             self.execute("DROP SCHEMA %s;" % self.schema)
             print 'dropped schema %s' % self.schema
         self.commit()
+
+    def make_subreddit_table(self, unique_ids):
+        if unique_ids.get('subreddits',True):
+            self.execute("""CREATE TABLE IF NOT EXISTS %s.subreddits(
+            subreddit VARCHAR(30) PRIMARY KEY,
+            accounts_active INTEGER,
+            created TIMESTAMP,
+            description TEXT,
+            rules JSONb,
+            submit_text TEXT,
+            submit_link_label TEXT,
+            subreddit_type VARCHAR(16),
+            subscribers INTEGER,
+            title TEXT,
+            timestamp TIMESTAMP
+            ); """ % self.schema)
+        else:
+            self.execute("""CREATE TABLE IF NOT EXISTS %s.subreddits(
+            subreddit VARCHAR(30),
+            accounts_active INTEGER,
+            created TIMESTAMP,
+            description TEXT,
+            rules JSONb,
+            submit_text TEXT,
+            submit_link_label TEXT,
+            subreddit_type VARCHAR(16),
+            subscribers INTEGER,
+            title TEXT,
+            timestamp TIMESTAMP
+            ); """ % self.schema)
 
     def make_log_table(self):
         self.execute("CREATE TABLE IF NOT EXISTS %s.log" % self.schema + """(
@@ -336,6 +421,14 @@ class Database(object):
         self.execute(statement, update_data + (opts.start_time,) )
         self.commit()
         print 'updated log'
+
+    def create_moderator_table(self):
+        #this table does not use primary keys
+        self.execute(("""CREATE TABLE IF NOT EXISTS %s.moderators""" % self.schema) +
+                     """(subreddit VARCHAR(30),
+                     username VARCHAR(30),
+                     timestamp TIMESTAMP,
+                     pos INTEGER)""")
 
 def make_update_data(cols, values):
     d1 =  ((AsIs(col), val) for col, val in zip(cols, values) if val is not None)

@@ -22,6 +22,7 @@ from praw_user import scraper
 from user_scrape import scrape_user
 from thread_process import process_thread
 from moderator_scrape import scrape_moderators
+from subreddit_scrape import scrape_subreddits
 
 from praw_object_data import retry_if_broken_connection
 
@@ -173,6 +174,9 @@ def main(args):
                     old_subreddit_post_dict = subreddit_post_dict
                 subreddit_post_dict = {}
     #moderator rescraping
+    if opts.SCRAPE_ANY_SUBREDDITS:
+        print 'beginning subreddit scraping'
+        scrape_subreddits(opts, reddit_scraper)
     if opts.moderators:
         scrape_moderators(opts, reddit_scraper)
     if opts.N <> 0 and len(opts.subreddits):
@@ -239,7 +243,8 @@ class options(object):
                             'the thread chosen for scraping is chosen at random as opposed to '\
                             'being put in a queue')
         parser.add_argument('--history',dest='history', nargs='*',choices=['threads','users',
-                                                                           'comments'],
+                                                                           'comments',
+                                                                           'subreddits'],
                             help="this option accepts up to three arguments, indicating which "\
                             'tables should have new rows made instead of row updates for when '\
                             'data is scraped. This should be disabled unless you need historical '\
@@ -255,6 +260,11 @@ class options(object):
                             help='If an argument is given, then this variable indicates how many '\
                             'days should pass before a user is rescraped; if not provided, the '\
                             'user will never be updated beyond the first scrape')
+        parser.add_argument('-sd','--subreddit-delay',dest='subreddit_delay',default=-1,type=float,
+                            help='If an argument is given, then this variable indicates how many '\
+                            'days should pass before a subreddit is rescraped; if not provided, '\
+                            'the subreddit will never be updated beyond the first scrape')
+        
         parser.add_argument('--post-refresh-time',dest='post_refresh_time',type=float,
                             help='Time period in days after which post lists for subreddits are'\
                             ' forced to refresh. By default, this appends new posts to the old.')
@@ -323,6 +333,27 @@ class options(object):
                             " threads that had a full comment-history scrape. It will only include"\
                             " threads encountered in comment and thread histories of user's "\
                             "profiles.")
+        parser.add_argument('--scrape-subreddits',action='store_true',dest='scrape_subreddits',
+                            help="Subreddits will be scraped for their information, using "\
+                            " the subreddits list as a source.")
+        parser.add_argument('--rescrape-subreddits',action='store_true',dest='rescrape_subreddits',\
+                            help="Will rescrape any subreddits previously scraped in subreddits "\
+                            "table or the moderators table.")
+        parser.add_argument('--scrape-subreddits-in-db',action='store_true',
+                            dest='scrape_subreddits_in_db',
+                            help='Will only scrape subreddits that appear in threads or comments '\
+                            'tables of database (and schema)')
+        parser.add_argument('--min-occurrences-for-subreddit-in-db',type=int,default=1,
+                            dest='min_occurrences_for_subreddit_in_db',
+                            help="The minimum number of times a subreddit should appear in "\
+                            "the database & schema to be selected via --scrape-subreddits-in-db.")
+        parser.add_argument('--repeat-subreddit-scraping',action='store_true',
+                            dest='repeat_subreddit_scraping',
+                            help="Will not avoid already-scraped subreddits if specified to loop "\
+                            "many times")
+        parser.add_argument('--n-subreddits-to-scrape',dest='n_subreddits_to_scrape',type=int,
+                            default=-1, help="The number of subreddits to scrape. Default is no "\
+                            "limit (-1).")
         parser.add_argument('--rescrape-with-comment-histories',action='store_true',
                             dest='rescrape_with_comment_histories',
                             help="Uses comment histories to gather thread IDs. Comment timestamp "\
@@ -343,6 +374,10 @@ class options(object):
                             action='store_true',
                             help="Will regather moderator info for subreddits in case they have "\
                             "already been gathered (instead of skipping them).")
+        parser.add_argument('--use-subreddit-table-for-moderators',action='store_true',
+                            dest='use_subreddit_table_for_moderators',
+                            help='Will use the subreddits table to choose subreddits for moderator'\
+                            ' scraping.')
         parser.add_argument('--timer',dest='timer',type=float,
                             help="After approx. this amount of time, in hours, the program will "\
                             "stop.")
@@ -413,6 +448,7 @@ class options(object):
         self.impose('post_refresh_time')
         self.impose('thread_delay')
         self.impose('user_delay')
+        self.impose('subreddit_delay')
         self.impose('user_comment_limit')
         self.impose('user_thread_limit')
         self.impose('man_user_comment_limit')
@@ -421,16 +457,22 @@ class options(object):
         self.impose('skip_comments')
         self.impose('rank_type')
         self.impose('timer')
+        self.impose('n_subreddits_to_scrape')
+        self.impose('min_occurrences_for_subreddit_in_db')
         self.rank_type = self.rank_type
         for elem in ['nouser','grabauthors','rescrape_threads','rescrape_users',
                      'get_upvote_ratio','deepuser','log', 'drop_old_posts',
                      'full_rescraping','avoid_full_threads',
                      'rescrape_with_comment_histories','verbose',
                      'moderators','moderators_all','repeat_moderator_subreddits',
-                     'scrape_moderators']:
+                     'scrape_moderators','scrape_subreddits','scrape_subreddits_in_db',
+                     'repeat_subreddit_scraping','use_subreddit_table_for_moderators',
+                     'rescrape_subreddits']:
             setattr(self, elem, handle_boolean(self, args, elem))
         self.impose('N')
         self.dictionary_time = datetime.datetime.now()
+        self.SCRAPE_ANY_SUBREDDITS = self.scrape_subreddits_in_db or self.scrape_subreddits \
+                                     or self.rescrape_subreddits
 
         #intialize database...
         #check if reset options have been triggered
