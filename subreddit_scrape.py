@@ -35,19 +35,29 @@ def scrape_subreddits(opts, scraper):
     while opts.n_subreddits_to_scrape == -1 or subreddit_counter < opts.n_subreddits_to_scrape:
         subreddit_text = subreddit_list[subreddit_counter % n_subreddits]
         if subreddit_text in subreddit_set and not opts.repeat_subreddit_scraping:
-            print 'skipping /r/%s' % subreddit_text
+            if opts.verbose:
+                print 'skipping /r/%s' % subreddit_text
+            subreddit_list.pop(subreddit_counter % n_subreddits)
             continue
         #check subreddit_delay
         scrape_subreddit_info(subreddit_text, opts, scraper)
         subreddit_counter += 1
+        subreddit_set.add(subreddit_text)
+        if subreddit_counter % 50 > 0:
+            print 'gone through %s subreddits' % subreddit_counter
+    print 'went through %s subreddits' % subreddit_counter
     print 'done scraping subreddits'
 
 @pod.retry_if_broken_connection
 def scrape_subreddit_info(text, opts, scraper):
     if not opts.db.check_subreddit_update_time(text, opts):
-        print 'too recently scraped /r/%s' % text
-    print 'scraping /r/%s' % text
+        if opts.verbose:
+            print 'too recently scraped /r/%s' % text
+        return False
+    if opts.verbose:
+        print 'scraping /r/%s' % text
     subreddit = scraper.subreddit(text)
     data = pod.get_subreddit_data(subreddit, opts)
     write_subreddit(data, opts)
-    print 'done with /r/%s' % text
+    if opts.verbose:
+        print 'done with /r/%s' % text
