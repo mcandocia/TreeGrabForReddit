@@ -72,6 +72,9 @@ def scrape_subreddit_info(text, opts, scraper):
         sys.stdout.flush()
     subreddit = scraper.subreddit(text)
     data = pod.get_subreddit_data(subreddit, opts)
+    if 'subreddit' not in data:
+        print '/r/%s not found' % text
+        return False
     write_subreddit(data, opts)
     if opts.verbose:
         print 'done with /r/%s' % text
