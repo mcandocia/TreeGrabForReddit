@@ -104,8 +104,9 @@ class Navigator(object):
         while self.is_active:
             if self.direction in ['D','S']:
                 self.get_comment_data()
-            sys.stdout.write('\r')
-            sys.stdout.write('COMMENT TREE POSITION: ' + str( self.position))
+            if self.opts.verbose:
+                sys.stdout.write('\r')
+                sys.stdout.write('COMMENT TREE POSITION: ' + str( self.position))
             #print self.get_comment_branch()
             sys.stdout.flush()
             self.move_one()
