@@ -1,16 +1,25 @@
 from datetime import datetime, timedelta
 import time
 import sys
+import re
 from psycopg2 import InternalError, ProgrammingError
 from prawcore.exceptions import NotFound
 from prawcore.exceptions import RequestException
 from prawcore.exceptions import Forbidden
+from prawcore.exceptions import Redirect
+from prawcore.exceptions import BadRequest
+from prawcore.exceptions import ServerError
+
 from praw.models.reddit.submission import Submission
 from praw.models.reddit.comment import Comment
 from praw.models.reddit.subreddit import Subreddit
+
 import json
 
 import pytz
+
+def search_for_subreddits(text):
+    return [x[0] for x in re.findall(r'/r/([\w\-]+)(?=([^\w\-]|$))',text)]
 
 def localize(obj):
     if obj is None:
@@ -194,8 +203,12 @@ def get_comment_data(comment, opts, mode='minimal', author_id=None):
         return {}
     return {comment.id:data}
 
+#related options
+#'scrape_related_subreddits','scrape_wikis',
+#                     'scrape_traffic'
+#related_subreddit_recursion_depth
 @retry_if_broken_connection
-def get_subreddit_data(subreddit, opts):
+def get_subreddit_data(subreddit, opts, recursion_depth=0):
     now = datetime.now()
     try:
         data = {
@@ -203,6 +216,8 @@ def get_subreddit_data(subreddit, opts):
             'accounts_active':subreddit.accounts_active,
             'created':datetime.fromtimestamp(subreddit.created_utc),
             'description':subreddit.description,
+            'has_wiki':subreddit.wiki_enabled,
+            'public_traffic':subreddit.public_traffic,
             'rules':json.dumps(subreddit.rules()['rules']),
             'submit_text':subreddit.submit_text,
             'submit_link_label':subreddit.submit_link_label,
@@ -215,4 +230,89 @@ def get_subreddit_data(subreddit, opts):
         print sys.exc_info()
         print 'subreddit data not found'
         return {}
-    return data
+    except ServerError:
+        print sys.exc_info()
+        print 'server error!'
+        raise ServerError
+    if opts.scrape_related_subreddits:
+        related_subreddits_data = get_related_subreddits(subreddit, opts, now)
+    else:
+        related_subreddits_data = None
+    if opts.scrape_wikis and data['has_wiki']:
+        wiki_data = get_wiki_data(subreddit, opts, related_subreddits_data, now)
+    else:
+        wiki_data = None
+    if opts.scrape_traffic and data['public_traffic']:
+        traffic_data = get_traffic_data(subreddit, opts, now)
+    else:
+        traffic_data = None
+    return {'data':data,
+            'related_subreddits_data':related_subreddits_data,
+            'wiki_data':wiki_data,
+            'traffic_data':traffic_data}
+
+@retry_if_broken_connection
+def get_traffic_data(subreddit, opts, timestamp):
+    traffic = subreddit.traffic()
+    day_data = traffic['day']
+    hour_data = traffic['hour']
+
+    day_traffic = [{'time':datetime.fromtimestamp(x[0]),
+                    'period_type':'day',
+                    'subreddit':subreddit.display_name,
+                    'unique_visits':x[1],
+                    'total_visits':x[2],
+                    'timestamp':timestamp} for x in day_data]
+    hour_traffic = [{'time':datetime.fromtimestamp(x[0]),
+                    'period_type':'hour',
+                    'subreddit':subreddit.display_name,
+                    'unique_visits':x[1],
+                    'total_visits':x[2],
+                     'timestamp':timestamp} for x in hour_data]
+
+    return day_traffic + hour_traffic
+
+@retry_if_broken_connection
+def get_related_subreddits(subreddit, opts, timestamp):
+    description = subreddit.description
+    subreddits = search_for_subreddits(subreddit.description)
+    #validation will update these entries later
+    return [{'subreddit':subreddit.display_name,
+             'related_subreddit':sub.lower(),
+             'relationship_type':'sidebar',
+             'timestamp':timestamp} for sub in subreddits]
+
+@retry_if_broken_connection
+def get_wiki_data(subreddit, opts, related_subreddits, timestamp):
+    wikis = subreddit.wiki
+    wiki_text_list = [get_content_or_blank(w) for w in wikis]
+    wiki_name = [w.name for w in wikis]
+    wiki_data = []
+    for name, text in zip(wiki_name, wiki_text_list):
+        if len(text)==0:
+            continue
+        wiki_data.append({'subreddit':subreddit.display_name,
+                          'content':text,
+                          'name':name,
+                          'timestamp':timestamp})
+        if opts.scrape_related_subreddits:
+            subreddits = search_for_subreddits(subreddit.description)
+            new_data = [{'subreddit':subreddit.display_name,
+                         'related_subreddit':sub.lower(),
+                         'relationship_type':'wiki',
+                         'wiki_name':name,
+                         'timestamp':timestamp} for sub in subreddits]
+            related_subreddits.extend(new_data)
+        return wiki_data
+            
+@retry_if_broken_connection
+def get_content_or_blank(wiki):
+    if wiki is None:
+        return ''
+    else:
+        try:
+            return wiki.content_md
+        except TypeError:
+            return ''
+
+    

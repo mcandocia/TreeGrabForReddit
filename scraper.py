@@ -54,7 +54,8 @@ def get_age(timestamp, localize=True):
     else:
         now = datetime.datetime.now()
     difference = (now - timestamp).seconds
-    days = float(difference) / 3600. / 24.
+    day_difference = (now - timestamp).days
+    days = float(difference) / 3600. / 24. + day_difference
     return days
 
 @retry_if_broken_connection
@@ -339,6 +340,24 @@ class options(object):
         parser.add_argument('--rescrape-subreddits',action='store_true',dest='rescrape_subreddits',\
                             help="Will rescrape any subreddits previously scraped in subreddits "\
                             "table or the moderators table.")
+        parser.add_argument('--scrape-related-subreddits',action='store_true',
+                            dest='scrape_related_subreddits',
+                            help="Will scrape the sidebar (and wiki if --scrape-wikis is enabled) "\
+                            "for mentions of other subreddits.")
+        parser.add_argument('--scrape-wikis',action='store_true',dest='scrape_wikis',
+                            help="Will scrape wikis of a subreddit (if they exist). If combined "\
+                            "with --scrape-related-subreddits, subreddit names will also be "\
+                            "extracted and validated")
+        parser.add_argument('--related-subreddit-recursion-depth',type=int,default=0,
+                            dest='related_subreddit_recursion_depth',
+                            help="If given, then any subreddits encountered (and validated) "\
+                            "during related subreddits scraping will be also scraped, provided "\
+                            "they are at most this many degrees away from one of the root "\
+                            "subreddits scraped.")
+        parser.add_argument('--scrape-traffic',action='store_true',dest='scrape_traffic',
+                            help="Will scrape traffic data when subreddits are being scraped. "\
+                            "This only works for subreddits that have public traffic, and it "\
+                            "takes an extra API call to do this.")
         parser.add_argument('--scrape-subreddits-in-db',action='store_true',
                             dest='scrape_subreddits_in_db',
                             help='Will only scrape subreddits that appear in threads or comments '\
@@ -459,6 +478,7 @@ class options(object):
         self.impose('timer')
         self.impose('n_subreddits_to_scrape')
         self.impose('min_occurrences_for_subreddit_in_db')
+        self.impose('related_subreddit_recursion_depth')
         self.rank_type = self.rank_type
         for elem in ['nouser','grabauthors','rescrape_threads','rescrape_users',
                      'get_upvote_ratio','deepuser','log', 'drop_old_posts',
@@ -467,13 +487,15 @@ class options(object):
                      'moderators','moderators_all','repeat_moderator_subreddits',
                      'scrape_moderators','scrape_subreddits','scrape_subreddits_in_db',
                      'repeat_subreddit_scraping','use_subreddit_table_for_moderators',
-                     'rescrape_subreddits']:
+                     'rescrape_subreddits','scrape_related_subreddits','scrape_wikis',
+                     'scrape_traffic']:
             setattr(self, elem, handle_boolean(self, args, elem))
         self.impose('N')
         self.dictionary_time = datetime.datetime.now()
         self.SCRAPE_ANY_SUBREDDITS = self.scrape_subreddits_in_db or self.scrape_subreddits \
                                      or self.rescrape_subreddits
-
+        #this is used to avoid navigating through the same subreddit twice if rescraping
+        self.RELATED_SUBREDDIT_SET = set([x.lower() for x in self.subreddits])
         #intialize database...
         #check if reset options have been triggered
                 

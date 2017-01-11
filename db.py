@@ -198,6 +198,9 @@ class Database(object):
         self.threadtable = '%s.threads' % self.schema
         self.commenttable = '%s.comments'% self.schema
         self.create_moderator_table()
+        self.create_traffic_table()
+        self.create_related_subreddits_table()
+        self.create_wiki_table()
         self.commit()
         print 'committed initial config'
         #create indexes
@@ -241,6 +244,7 @@ class Database(object):
                          " id=%s AND scrape_mode='thread'",[thread_id])
             return self.fetchall()[0][0]
         except:
+            print 'cannot get thread update time...check for bugs'
             print sys.exc_info()
             return None
 
@@ -322,6 +326,59 @@ class Database(object):
                     ' WHERE subreddit=\'%s\'' % data['subreddit']
         self.execute(statement, make_update_data(cols, values))
 
+    def check_if_traffic_entry_exists(self, data):
+        self.execute("""SELECT max(timestamp) FROM %s.traffic 
+        WHERE
+        subreddit=%%s AND
+        period_type=%%s AND
+        time=%%s""" % self.schema, (data['subreddit'],
+                                    data['period_type'],
+                                    data['time']))
+        result = self.fetchall()[0][0]
+        return result is not None
+
+    def insert_traffic(self, data):
+        #print data
+        cols = data.keys()
+        values = [data[key] for key in cols]
+        statement = ('INSERT INTO %s' % self.schema) + '.traffic(%s) values %s;'
+        parsed_statement = self.cur.mogrify(statement, (AsIs(','.join(cols)), tuple(values)))
+        self.execute(parsed_statement)
+
+
+    def update_traffic(self, data):
+        cols = data.keys()
+        values = [data[key] for key in cols]
+
+        statement = """UPDATE %s.traffic SET %s
+                     WHERE subreddit=%%s AND
+        period_type=%%s AND
+        time=%%s""" % (self.schema, make_update_template(values))
+        self.execute(statement, make_update_data(cols, values) + [data['subreddit'],
+                                                                  data['period_type'],
+                                                                  data['time']])
+
+        
+    #for now wiki and related_subreddits are in history mode
+    #so queries that search for subreddits that have been collected multiple times should
+    #use "HAVING max(timestamp)" in a GROUP BY clause can alleviate this easily
+    def insert_wiki(self, data):
+        #print data
+        cols = data.keys()
+        values = [data[key] for key in cols]
+        statement = ('INSERT INTO %s' % self.schema) + '.wikis(%s) values %s;'
+        parsed_statement = self.cur.mogrify(statement, (AsIs(','.join(cols)), tuple(values)))
+        self.execute(parsed_statement)
+
+
+    def insert_related_subreddit(self, data):
+        #print data
+        cols = data.keys()
+        values = [data[key] for key in cols]
+        statement = ('INSERT INTO %s' % self.schema) + '.related_subreddits(%s) values %s;'
+        parsed_statement = self.cur.mogrify(statement, (AsIs(','.join(cols)), tuple(values)))
+        self.execute(parsed_statement)
+
 
     def commit(self):
         self.conn.commit()
@@ -345,6 +402,9 @@ class Database(object):
         self.execute("DROP TABLE IF EXISTS %s.log;" % self.schema)
         self.execute("DROP TABLE IF EXISTS %s.subreddits;" % self.schema)
         self.execute("DROP TABLE IF EXISTS %s.moderators;" % self.schema)
+        self.execute("DROP TABLE IF EXISTS %s.traffic;" % self.schema)
+        self.execute("DROP TABLE IF EXISTS %s.related_subreddits;" % self.schema)
+        self.execute("DROP TABLE IF EXISTS %s.wikis;" % self.schema)
         if not exclude_schema:
             self.execute("DROP SCHEMA %s;" % self.schema)
             print 'dropped schema %s' % self.schema
@@ -357,6 +417,8 @@ class Database(object):
             accounts_active INTEGER,
             created TIMESTAMP,
             description TEXT,
+            has_wiki BOOLEAN,
+            public_traffic BOOLEAN,
             rules JSONb,
             submit_text TEXT,
             submit_link_label TEXT,
@@ -371,6 +433,8 @@ class Database(object):
             accounts_active INTEGER,
             created TIMESTAMP,
             description TEXT,
+            has_wiki BOOLEAN,
+            public_traffic BOOLEAN,
             rules JSONb,
             submit_text TEXT,
             submit_link_label TEXT,
@@ -430,11 +494,38 @@ class Database(object):
                      username VARCHAR(30),
                      timestamp TIMESTAMP,
                      pos INTEGER)""")
+        
+    def create_traffic_table(self):
+        self.execute("""CREATE TABLE IF NOT EXISTS %s.traffic(
+        subreddit VARCHAR(30),
+        period_type VARCHAR(4),
+        time TIMESTAMP,
+        total_visits INTEGER,
+        unique_visits INTEGER,
+        timestamp TIMESTAMP,
+        PRIMARY KEY (subreddit, period_type, time))
+        """ % self.schema)
+
+    def create_related_subreddits_table(self):
+        self.execute("""CREATE TABLE IF NOT EXISTS %s.related_subreddits(
+        subreddit VARCHAR(30),
+        related_subreddit VARCHAR(30),
+        relationship_type VARCHAR(7),
+        wiki_name TEXT,
+        related_is_private BOOLEAN,
+        timestamp TIMESTAMP)""" % self.schema)
+
+    def create_wiki_table(self):
+        self.execute("""CREATE TABLE IF NOT EXISTS %s.wikis(
+        subreddit VARCHAR(30),
+        content TEXT,
+        name TEXT,
+        timestamp TIMESTAMP)""" % self.schema)
 
 def make_update_data(cols, values):
     d1 =  ((AsIs(col), val) for col, val in zip(cols, values) if val is not None)
     merged = tuple(itertools.chain.from_iterable(d1))
-    return merged
+    return list(merged)
 
 def make_update_template(values):
     return ','.join(['%s=%s' for v in values if v is not None])

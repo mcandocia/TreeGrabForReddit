@@ -23,7 +23,7 @@ def write_user(data, opts):
         if last_time is None:
             db.insert_user(data)
         elif opts.user_delay == -1 or ((data['timestamp'] - last_time).seconds*seconds_to_days < \
-                                     opts.user_delay):
+                                       opts.user_delay - (data['timestamp'] - last_time).days):
             if opts.verbose:
                 print 'already have %s in database' % data['username']
             return False
@@ -55,7 +55,8 @@ def write_thread(data, opts):
             db.insert_thread(data)
             db.commit()
             return True
-        fails_time = (data['timestamp'] - last_time).seconds*seconds_to_days < opts.thread_delay
+        fails_time = (data['timestamp'] - last_time).seconds*seconds_to_days < opts.thread_delay - \
+                     (data['timestamp'] - last_time).days
         if opts.thread_delay == -1 or fails_time:
             return False
         else:
@@ -88,7 +89,7 @@ def write_comment(data, opts):
             db.commit()
             return True
         meets_time_cutoff = (data['timestamp'] - last_time).seconds*seconds_to_days < \
-                            opts.thread_delay
+                            opts.thread_delay - (data['timestamp'] - last_time).days
         updateable = opts.thread_delay <> -1
         thread_mode = data['scrape_mode'] == 'thread'
         if (not (thread_mode or history_mode)) or \
@@ -105,7 +106,7 @@ def write_comment(data, opts):
         print data
         print sys.exc_info()
         db.insert_comment(data)
-    db.commit()
+    self.commit()
     return True
 
 def write_subreddit(data, opts):
@@ -113,9 +114,29 @@ def write_subreddit(data, opts):
     #print data
     db = opts.db
     #subreddit has already passed the validation requirements
+    if 'subreddit' not in data:
+        print data
     last_update = db.get_subreddit_update_time(data['subreddit'])
     if history_mode or last_update==None:
         db.insert_subreddit(data)
     else:
         db.update_subreddit(data)
-    db.commit()
+
+
+def write_traffic(data, opts):
+    db = opts.db
+    for entry in data:
+        if db.check_if_traffic_entry_exists(entry):
+            db.update_traffic(entry)
+        else:
+            db.insert_traffic(entry)
+
+def write_related_subreddits(data, opts):
+    db = opts.db
+    for entry in data:
+        db.insert_related_subreddit(entry)
+
+def write_wikis(data, opts):
+    db = opts.db
+    for entry in data:
+        db.insert_wiki(entry)
