@@ -12,9 +12,9 @@ The script is currently new and being debugged; here's how you can run it:
 4. Edit praw_user.py to reflect your Reddit developer account information.
 5. Use the command line to run the code.
 
-Also, see <http://maxcandocia.com/blog/2016/Dec/30/scraping-reddit-data/> for example use cases.
+Also, see <http://maxcandocia.com/blog/2016/Dec/30/scraping-reddit-data/> for example use cases. Note that some features have been added since the post was made.
 
-Right now the scraper (if run from scraper.py) can run through files if you manually give the post IDs and/or you supply a list of subreddits to cyclically collect data from. You can also supply a list of user names to scrape through beforehand.
+Right now the scraper (if run from scraper.py) can run through files if you manually give the post IDs and/or you supply a list of subreddits to cyclically collect data from. You can also supply a list of user names to scrape through beforehand, as well as having it search subreddits that have a minimum count frequency in the database as entries in the subreddit column for the comments and threads tables.
 
 The basic command format is
 
@@ -55,6 +55,8 @@ You can use `--help` if you want more details, but not all of the functions/feat
 * You should probably do separate calls when rescraping posts/users. While you can share filters, the process can take a long time and they don't do the exact same thing.
 
 * You can scrape subreddits now, as well as moderator information.
+
+* You can scrape related subreddits using subreddit sidebars and wikis. There is also an option to generate your own .txt file of subreddits using `get_subreddit_list.py`.
 
 ## Other Notes
 
