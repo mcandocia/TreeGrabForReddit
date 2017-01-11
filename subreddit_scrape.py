@@ -122,7 +122,7 @@ def validate_related_subreddits(data, opts, scraper, recursion_depth):
     while i < len(data):
         entry = data[i]
         results = validate_subreddit(entry, opts, scraper)
-        print results
+        #print results
         #process results to determine whether to remove or update set
         if results is None:
             data.pop(i)
@@ -160,6 +160,8 @@ def process_subreddit_recursively(subreddit, opts, recursion_depth, scraper):
 
 def validate_subreddit(entry, opts, scraper):
     try:
+        if entry['related_subreddit'] in opts.RELATED_SUBREDDIT_SET:
+            return None
         subreddit = scraper.subreddit(entry['related_subreddit'])
         #need to force update of display_name
         num_subscribers = subreddit.subscribers
