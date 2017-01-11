@@ -106,7 +106,7 @@ def write_comment(data, opts):
         print data
         print sys.exc_info()
         db.insert_comment(data)
-    self.commit()
+    db.commit()
     return True
 
 def write_subreddit(data, opts):
