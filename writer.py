@@ -57,7 +57,7 @@ def write_thread(data, opts):
             return True
         fails_time = (data['timestamp'] - last_time).seconds*seconds_to_days < opts.thread_delay - \
                      (data['timestamp'] - last_time).days
-        if opts.thread_delay == -1 or fails_time:
+        if (opts.thread_delay == -1 or fails_time) and data['scrape_mode'] <> 'thread':
             return False
         else:
             if history_mode:
