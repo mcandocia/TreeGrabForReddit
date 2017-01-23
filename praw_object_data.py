@@ -139,6 +139,8 @@ def get_thread_data(thread, opts, mode='minimal'):
             'author_id':author_id,
             'author_flair':thread.author_flair_text,
             'author_flair_css_class':thread.author_flair_css_class,
+            'link_flair_text':thread.link_flair_text,
+            'link_flair_css_class':thread.link_flair_css_class,
             'is_distinguished':thread.distinguished is not None,
             'gold':thread.gilded,
             'domain':thread.domain,

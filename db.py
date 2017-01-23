@@ -56,6 +56,8 @@ class Database(object):
             edited TIMESTAMP,
             author_flair TEXT,
             author_flair_css_class TEXT,
+            link_flair_text TEXT,
+            link_flair_css_class TEXT,
             is_distinguished BOOLEAN,
             gold INT,
             is_self BOOLEAN,
@@ -90,6 +92,8 @@ class Database(object):
             edited TIMESTAMP,
             author_flair TEXT,
             author_flair_css_class TEXT,
+            link_flair_text TEXT,
+            link_flair_css_class TEXT,
             is_distinguished BOOLEAN,
             gold INT,
             is_self BOOLEAN,
@@ -242,8 +246,11 @@ class Database(object):
         try:
             self.execute(("SELECT max(timestamp) FROM %s.threads WHERE" % self.schema) +\
                          " id=%s AND scrape_mode='thread'",[thread_id])
-            return self.fetchall()[0][0]
-        except:
+            update_time =  self.fetchall()[0][0]
+            #print thread_id
+            #print update_time
+            return update_time
+        except psycopg2.ProgrammingError:
             print 'cannot get thread update time...check for bugs'
             print sys.exc_info()
             return None
@@ -483,7 +490,7 @@ class Database(object):
         template = make_update_template(values)
         statement = ('UPDATE %s' % self.schema) + '.log SET ' + template + \
                     ' WHERE start_time=%s'
-        self.execute(statement, update_data + (opts.start_time,) )
+        self.execute(statement, update_data + [opts.start_time,] )
         self.commit()
         print 'updated log'
 
