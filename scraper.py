@@ -149,7 +149,7 @@ def main(args):
     n_subreddits = len(opts.subreddits)
     subreddit_post_dict = {}
     old_subreddit_post_dict = {}
-    while opts.N == -1 or (counter < opts.N and n_subreddits > 0):
+    while (opts.N == -1 or counter < opts.N) and n_subreddits > 0:
         subreddit_name = opts.subreddits[counter % n_subreddits]
         if subreddit_name not in subreddit_post_dict or subreddit_name in ['random','randnsfw']:
             subreddit = get_subreddit(subreddit_name, reddit_scraper)
@@ -207,7 +207,8 @@ class options(object):
         parser.add_argument('name',
                             help="the schema name for the tables to be stored in",
                             default='default')
-        parser.add_argument('-p','--pattern',dest='pattern',nargs='+',default=['D',50,10,5,5,4,2,1],
+        parser.add_argument('-p','--pattern',dest='pattern',nargs='+',
+                            default=['D'] + [5e5 for _ in range(30)],
                             help='a space-separated list of ints that describe the maximum number'\
                             ' of comments that will be scraped at each level, with the first'\
                             'argument indicating the root of a thread (top-level comments)'\
@@ -370,9 +371,6 @@ class options(object):
                             dest='repeat_subreddit_scraping',
                             help="Will not avoid already-scraped subreddits if specified to loop "\
                             "many times")
-        parser.add_argument('--n-subreddits-to-scrape',dest='n_subreddits_to_scrape',type=int,
-                            default=-1, help="The number of subreddits to scrape. Default is no "\
-                            "limit (-1).")
         parser.add_argument('--rescrape-with-comment-histories',action='store_true',
                             dest='rescrape_with_comment_histories',
                             help="Uses comment histories to gather thread IDs. Comment timestamp "\
@@ -476,7 +474,6 @@ class options(object):
         self.impose('skip_comments')
         self.impose('rank_type')
         self.impose('timer')
-        self.impose('n_subreddits_to_scrape')
         self.impose('min_occurrences_for_subreddit_in_db')
         self.impose('related_subreddit_recursion_depth')
         self.rank_type = self.rank_type
