@@ -337,6 +337,7 @@ class Navigator(object):
     def store_all_data(self):
         #get author data
         self.author_data = {}
+        skip_counter = 0
         if not self.opts.nouser:
             n_authors = len(self.authors)
             print 'scraping %d authors' % n_authors
