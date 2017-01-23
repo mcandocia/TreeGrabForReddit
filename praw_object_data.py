@@ -142,6 +142,7 @@ def get_thread_data(thread, opts, mode='minimal'):
             'link_flair_text':thread.link_flair_text,
             'link_flair_css_class':thread.link_flair_css_class,
             'is_distinguished':thread.distinguished is not None,
+            'is_spoiler':thread.spoiler,
             'gold':thread.gilded,
             'domain':thread.domain,
             'is_self':thread.is_self,
