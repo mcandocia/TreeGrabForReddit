@@ -63,6 +63,8 @@ def scrape_subreddit_for_moderators(subreddit, opts, scraper):
     print 'getting data for /r/%s' % subreddit_proper_name
     current_time = datetime.datetime.now()
     for i, mod in enumerate(mods):
+        if opts.verbose:
+            print 'getting data for /u/%s' % str(mod)
         opts.db.execute("""INSERT INTO %s.moderators(subreddit, username, timestamp, pos)
         VALUES (%%s, %%s, %%s, %%s);""" % opts.db.schema, (subreddit_proper_name,
                                                            str(mod),
