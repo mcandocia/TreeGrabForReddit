@@ -43,10 +43,14 @@ def construct_delay_part_of_query(opts, delay=None):
 def construct_subreddit_part_of_thread_query(opts):
     if len(opts.subreddits) == 0:
         return ' true '
+    elif all([s in ['random','randnsfw'] for s in opts.subreddits]):
+        return ' true '
     return opts.db.cur.mogrify(" subreddit = ANY(%s) ", (opts.subreddits,))
 
 def construct_subreddit_part_of_user_query(opts):
     if len(opts.subreddits) == 0:
+        return ' true '
+    elif all([s in ['random','randnsfw'] for s in opts.subreddits]):
         return ' true '
     string = opts.db.cur.mogrify(''' username IN 
     (SELECT DISTINCT author_name FROM %%s.comments 
@@ -64,6 +68,14 @@ def construct_scrape_mode_part_of_query(opts):
         return ' true '
     else:
         return " scrape_mode='thread' "
+
+#currently disabled since no way of easily gathering minimum comments for comment-based IDs
+#additionally, more comments may have been added to a thread in the future
+def construct_min_comments_part_of_query(opts):
+    if not opts.mincomments or True:
+        return ' true '
+    else:
+        return ' num_comments=%d ' % opts.mincomments
 
 def rescrape_users(scraper, opts):
     query = ((''' SELECT username FROM %s.users WHERE ''' +
@@ -91,7 +103,8 @@ def rescrape_threads(scraper, opts):
                  'AND'.join([construct_age_part_of_query(opts),
                              construct_delay_part_of_query(opts),
                              construct_subreddit_part_of_thread_query(opts),
-                             construct_scrape_mode_part_of_query(opts)]) +
+                             construct_scrape_mode_part_of_query(opts),
+                             construct_min_comments_part_of_query(opts)]) +
                  ' ORDER BY random();') % opts.db.schema
         print query
         opts.db.execute(query)
