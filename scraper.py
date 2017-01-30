@@ -100,7 +100,7 @@ def select_post(subreddit_name, post_dict, opts, reddit_scraper, refreshed=False
             post = valid_posts.pop(0)
         if validate_post(post, opts):
             return post
-        else:
+        elif opts.reappend:
             valid_posts.append(post)
     if not refreshed:
         print 'refreshing dictionary for %s' % subreddit_name
@@ -400,6 +400,10 @@ class options(object):
                             "stop.")
         parser.add_argument('--verbose','-v',dest='verbose',action='store_true',
                             help="Enabling this will increase the text output during scraping.")
+
+        parser.add_argument('--reappend-invalid-posts',dest='reappend',action='store_true',
+                            help="Instead of discarding a post from the queue for a subreddit, "\
+                            "sends the post to the back of the queue when it is deemed invalid.")
         print 'added arguments'
         args = parser.parse_args()
         print 'parsed arguments'
@@ -476,6 +480,7 @@ class options(object):
         self.impose('timer')
         self.impose('min_occurrences_for_subreddit_in_db')
         self.impose('related_subreddit_recursion_depth')
+        self.impose('reappend')
         self.rank_type = self.rank_type
         for elem in ['nouser','grabauthors','rescrape_threads','rescrape_users',
                      'get_upvote_ratio','deepuser','log', 'drop_old_posts',
