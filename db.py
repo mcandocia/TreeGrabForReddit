@@ -29,18 +29,24 @@ class Database(object):
     have a sanitized schema name."""
     dbtype = 'postgres'
     def __init__(self, name=default_schema,
-                 unique_ids={'comments':True,'users':True,'threads':True,'subreddits':True}):
+                 unique_ids={'comments':True,'users':True,'threads':True,'subreddits':True},
+                 silence=False):
         #initialize connection
         self.conn = psycopg2.connect(database=database, user=username, host=host, port=port,
                                      password=password)
         self.cur = self.conn.cursor()
-        print unique_ids
+        if not silence:
+            print unique_ids
         self.schema=name
-        print 'started connection'
+        self.silence = silence
+        if not silence:
+            print 'started connection'
         #make schema and tables
-        print """CREATE SCHEMA IF NOT EXISTS %s;""" % self.schema
+        if not silence:
+            print """CREATE SCHEMA IF NOT EXISTS %s;""" % self.schema
         self.cur.execute("""CREATE SCHEMA IF NOT EXISTS %s;""" % self.schema)
-        print 'made schema'
+        if not silence:
+            print 'made schema'
         self.make_log_table()
         if unique_ids.get('threads',True):
             self.cur.execute("""CREATE TABLE IF NOT EXISTS %s.threads(
@@ -113,7 +119,8 @@ class Database(object):
             scrape_mode VARCHAR(10),--'thread|list|profile|minimal'
             timestamp TIMESTAMP
             );""" % self.schema)
-        print 'made threads table'
+        if not self.silence:
+            print 'made threads table'
         if unique_ids.get('users',True):
             #main info
             #username is primary key due to existence of shadowbanned users, who
@@ -150,7 +157,8 @@ class Database(object):
             '''self.execute("""CREATE INDEX IF NOT EXISTS %s.%s ON %s.users 
             USING id TABLESPACE %s;""" % 
             (self.schema,'user_id_index',self.schema, tablespace))'''
-        print 'made users table'
+        if not self.silence:
+            print 'made users table'
         if unique_ids.get('comments', True):
             self.cur.execute("""CREATE TABLE IF NOT EXISTS %s.comments(
             id VARCHAR(8) PRIMARY KEY,
@@ -199,7 +207,8 @@ class Database(object):
             timestamp TIMESTAMP
             );""" % self.schema)
         self.make_subreddit_table(unique_ids)
-        print 'made comments table'
+        if not self.silence:
+            print 'made comments table'
         self.usertable = '%s.users' % self.schema
         self.threadtable = '%s.threads' % self.schema
         self.commenttable = '%s.comments'% self.schema
@@ -208,7 +217,8 @@ class Database(object):
         self.create_related_subreddits_table()
         self.create_wiki_table()
         self.commit()
-        print 'committed initial config'
+        if not self.silence:
+            print 'committed initial config'
         #create indexes
         #hold off for now 
         
@@ -479,7 +489,8 @@ class Database(object):
                                           data['stop_reason'],
                                           data['notes']])
         self.commit()
-        print 'made log entry'
+        if not self.silence:
+            print 'made log entry'
 
     def update_log_entry(self, opts, reason, notes=None):
         start_time = opts.start_time
