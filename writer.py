@@ -92,8 +92,7 @@ def write_comment(data, opts):
                             opts.thread_delay - (data['timestamp'] - last_time).days
         updateable = opts.thread_delay <> -1
         thread_mode = data['scrape_mode'] == 'thread'
-        if (not (thread_mode or history_mode)) or \
-           ((not thread_mode) and meets_time_cutoff and updateable):
+        if (not (thread_mode or history_mode)):
             return False
         else:
             if history_mode:
