@@ -670,19 +670,22 @@ default_subreddits = [
 def main():
     mindate = datetime.datetime(2016,10,1)
     #create table to select data from
-    db.execute("""CREATE TABLE IF NOT EXISTS swear_comment_source_2 AS 
-    (SELECT * FROM politics.comments 
+    db.execute("""CREATE TABLE IF NOT EXISTS swear_comment_source_3 AS 
+    (SELECT *, 
+    false AS has_swear,
+    false AS has_specific_swear 
+    FROM defaults.comments 
     WHERE created>=%s
     AND author_name != 'AutoModerator'
     AND subreddit=ANY(%s)
     );""", (mindate, top_subreddits))
     #relative will be initially unfilled, later updated
-    db.execute("""CREATE TABLE IF NOT EXISTS swears_general_2(
+    db.execute("""CREATE TABLE IF NOT EXISTS swears_general_3(
     subreddit VARCHAR(30),
     word VARCHAR(30),
     count BIGINT,
     relative FLOAT);""")
-    db.execute("""CREATE TABLE IF NOT EXISTS swears_specific_2(
+    db.execute("""CREATE TABLE IF NOT EXISTS swears_specific_3(
     subreddit VARCHAR(30),
     word VARCHAR(30),
     count BIGINT,
@@ -695,6 +698,7 @@ def main():
     for word in p.imap_unordered(general_swear, extended_bad_words.keys()):
         print word
     db.commit()
+    
     print 'doing actual swear pool'
     for word in p.imap_unordered(specific_swear, swears):
         print word
@@ -702,43 +706,39 @@ def main():
 
     #
     #now normalize
-    '''db.execute("""CREATE TABLE IF NOT EXISTS swear_source_counter AS
-    SELECT subreddit, count(*) FROM swear_comment_source _2
-    GROUP BY subreddit;""")
-    db.commit()'''
-    db.execute("""UPDATE swears_general_2
+    db.execute("""UPDATE swears_general_3
     SET relative = count::float/t1.cnt::float FROM
     (SELECT subreddit, count(*) as cnt 
-    FROM swear_comment_source_2
+    FROM swear_comment_source_3
     GROUP BY subreddit) t1
-    WHERE swears_general_2.subreddit = t1.subreddit;""")
+    WHERE swears_general_3.subreddit = t1.subreddit;""")
     print 'added relative freq to general table'
-    db.execute("""UPDATE swears_specific_2
+    db.execute("""UPDATE swears_specific_3
     SET relative = count::float/t1.cnt::float FROM
     (SELECT subreddit, count(*) as cnt 
-    FROM swear_comment_source_2
+    FROM swear_comment_source_3
     GROUP BY subreddit) t1
-    WHERE swears_specific_2.subreddit = t1.subreddit;""")
+    WHERE swears_specific_3.subreddit = t1.subreddit;""")
     print 'added relative freq to specific table'
     db.commit()
     #summaries
-    db.execute("""CREATE TABLE IF NOT EXISTS swears_general_summary_2 AS
+    db.execute("""CREATE TABLE IF NOT EXISTS swears_general_summary_3 AS
     (SELECT subreddit, sum(count) AS total, sum(relative) AS percentage
-    FROM swears_general_2
+    FROM swears_general_3
     GROUP BY subreddit)""")
-    db.execute("""CREATE TABLE IF NOT EXISTS swears_specific_summary_2 AS
+    db.execute("""CREATE TABLE IF NOT EXISTS swears_specific_summary_3 AS
     (SELECT subreddit, sum(count) AS total, sum(relative) AS percentage
-    FROM swears_specific_2
+    FROM swears_specific_3
     GROUP BY subreddit)""")
     db.commit()
 
 def general_swear(swear):
-    db = pgdb.Database('null_',{}, silence=True)    
-    db.execute("""INSERT INTO swears_general_2
+    db = pgdb.Database('null_',{}, silence=True)
+    db.execute("""INSERT INTO swears_general_3
     SELECT subreddit, %s AS word, 
     count(CASE WHEN  lower(text) SIMILAR TO '%%(\s|^| )'||%s||'( |\s|[,.!?]|$)%%' 
     THEN 1 ELSE NULL END) AS count, NULL
-    FROM swear_comment_source_2
+    FROM swear_comment_source_3
     GROUP BY subreddit;""", [swear,swear,])
     db.commit()
     return swear
@@ -746,11 +746,11 @@ def general_swear(swear):
 
 def specific_swear(swear):
     db = pgdb.Database('null_',{}, silence=True)
-    db.execute("""INSERT INTO swears_specific_2
+    db.execute("""INSERT INTO swears_specific_3
     SELECT subreddit, %s AS word,
     count(CASE WHEN  lower(text) SIMILAR TO '%%(\s|^| )'||%s||'( |\s|[,.!?]|$)%%' 
     THEN 1 ELSE NULL END) AS count, NULL
-    FROM swear_comment_source_2
+    FROM swear_comment_source_3
     GROUP BY subreddit;""", [swear,swear,])
     db.commit()
     return swear
