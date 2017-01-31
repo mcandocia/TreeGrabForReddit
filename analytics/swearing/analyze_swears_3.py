@@ -70,9 +70,10 @@ swears = {
     'cunt':'cunt',
     'cunts':'cunt',
     'motherfucker':'motherfucker',
+    'motherfuckers':'motherfucker',
     'retard':'retard',
-    'retards':'retards',
-    'retarded':'retarded',
+    'retards':'retard',
+    'retarded':'retard',
     'whore':'whore',
     'whores':'whore',
     'whoring':'whore',
@@ -95,6 +96,10 @@ swears = {
     'spick':'spic',
     'spig':'spic',
     'spigotty':'spic',
+    'spics':'spic',
+    'spiks':'spic',
+    'spicks':'spic',
+    'spigs':'spic',
     'chink':'chink',
     'chinks':'chink',
     'coon':'coon',
@@ -112,6 +117,12 @@ swears = {
     'cocksuckers':'cocksucker',
     'twat':'twat',
     'twats':'twat',
+    'cuck':'cuck',
+    'cucks':'cuck',
+    'cuckoldry':'cuck',
+    'cuckservative':'cuck',
+    'cucked':'cuck',
+    'cucking':'cuck',
 }
 
 #subreddits of interest
@@ -733,7 +744,16 @@ default_subreddits = [
 def word_tabname(x):
     return 't_' + re.sub('[^0-9a-zA-Z]','',x)
 
-suffix = '_politics2'
+def invert_dictionary(x):
+    new_dict = {}
+    for key, val in x.iteritems():
+        new_dict[val] = new_dict.get(val, []) + [key]
+    return new_dict
+
+swears_inverted = invert_dictionary(swears)
+
+
+suffix = '_defaults5'
 def main():
     mindate = datetime.datetime(2016,10,1)
     #create table to select data from
@@ -741,9 +761,9 @@ def main():
     (SELECT id, subreddit, text, 
     false AS has_swear,
     false AS has_specific_swear 
-    FROM politics.comments 
+    FROM defaults.comments 
     WHERE created>=%%s
-    AND author_name != 'AutoModerator'
+    AND NOT author_name=ANY(ARRAY['AutoModerator','WritingPromptsRobot'])
     AND subreddit=ANY(%%s)
     );""" % suffix, (mindate, top_subreddits))
     print 'selected comments'
@@ -757,11 +777,13 @@ def main():
     WHERE word=ANY(%%s)""" % suffix, (stop_words,))
     print 'removed stopwords'
     #relative will be initially unfilled, later updated
+    db.execute("""DROP TABLE IF EXISTS swears_general%s""" % suffix)
     db.execute("""CREATE TABLE IF NOT EXISTS swears_general%s(
     subreddit VARCHAR(30),
     word VARCHAR(30),
     count BIGINT,
     relative FLOAT);""" % suffix)
+    db.execute("""DROP TABLE IF EXISTS swears_specific%s;""" % suffix)
     db.execute("""CREATE TABLE IF NOT EXISTS swears_specific%s(
     subreddit VARCHAR(30),
     word VARCHAR(30),
@@ -776,9 +798,10 @@ def main():
     for word in p.imap_unordered(general_swear, extended_bad_words.keys()):
         print word
     db.commit()
-    
+
+    #now use and combine actual swears
     print 'doing actual swear pool'
-    for word in p.imap_unordered(specific_swear, swears.keys()):
+    for word in p.imap_unordered(specific_swear, swears_inverted.keys()):
         print word
     db.commit()
 
@@ -799,8 +822,9 @@ def main():
     WHERE swears_specific%s.subreddit = t1.subreddit;""" % (suffix, suffix, suffix))
     print 'added relative freq to specific table'
     db.commit()
+    
     #summaries
-    #db
+    db.execute("""DROP TABLE IF EXISTS swears_general_summary%s""" % suffix)
     db.execute("""CREATE TABLE IF NOT EXISTS swears_general_summary%s AS
     (SELECT subreddit, count(CASE WHEN has_swear THEN 1 ELSE NULL END) AS total_swears, 
     0.00 AS percentage_swears
@@ -813,6 +837,7 @@ def main():
     GROUP BY subreddit) t1
     WHERE swears_general_summary%s.subreddit = t1.subreddit""" % (suffix, suffix, suffix))
 
+    db.execute("""DROP TABLE IF EXISTS swears_specific_summary%s""" % suffix)    
     db.execute("""CREATE TABLE IF NOT EXISTS swears_specific_summary%s AS
     (SELECT subreddit, count(CASE WHEN has_specific_swear THEN 1 ELSE NULL END) AS total_swears, 
     0.00 AS percentage_swears
@@ -824,7 +849,67 @@ def main():
     FROM swear_comment_source%s
     GROUP BY subreddit) t1
     WHERE swears_specific_summary%s.subreddit = t1.subreddit""" % (suffix, suffix, suffix))
+    print 'made summaries'
     db.commit()
+    #expand swears_specific%s and swears_general%s
+    db.execute("""CREATE TABLE IF NOT EXISTS default_subreddits AS
+    SELECT DISTINCT subreddit FROM swear_comment_source%s
+    ORDER BY subreddit;""" % suffix)
+    db.execute("""CREATE TABLE IF NOT EXISTS word_list1 AS
+    SELECT DISTINCT word FROM swears_general%s
+    ORDER BY word;""" % suffix)
+    db.execute("""CREATE TABLE IF NOT EXISTS word_list2 AS
+    SELECT DISTINCT word FROM swears_specific%s
+    ORDER BY word;""" % suffix)
+    db.execute("""CREATE TABLE IF NOT EXISTS wordsub_1 AS
+    SELECT * FROM
+    word_list1
+    CROSS JOIN
+    default_subreddits;""")
+    db.execute("""CREATE TABLE IF NOT EXISTS wordsub_2 AS
+    SELECT * FROM
+    word_list2
+    CROSS JOIN
+    default_subreddits;""")
+    #join specific and general tables, then create 0 values for "total" and "relative" in NULL cols
+    db.execute("""DROP TABLE IF EXISTS swears_general_expanded%s""" % suffix)
+    db.execute("""DROP TABLE IF EXISTS swears_specific_expanded%s""" % suffix)
+    db.execute("""CREATE TABLE swears_general_expanded%s AS
+    (SELECT wordsub_1.word, wordsub_1.subreddit, 
+    CASE WHEN relative IS NOT NULL THEN relative ELSE 0 END as relative,
+    CASE WHEN count IS NOT NULL THEN count ELSE 0 END as count
+    FROM 
+    swears_general%s
+    FULL JOIN
+    wordsub_1
+    ON 
+    swears_general%s.subreddit = wordsub_1.subreddit
+    AND
+    swears_general%s.word = wordsub_1.word);""" % (suffix, suffix, suffix, suffix))
+
+    db.execute("""CREATE TABLE swears_specific_expanded%s AS
+    (SELECT wordsub_2.word, wordsub_2.subreddit, 
+    CASE WHEN relative IS NOT NULL THEN relative ELSE 0 END as relative,
+    CASE WHEN count IS NOT NULL THEN count ELSE 0 END as count
+    FROM 
+    swears_specific%s
+    FULL JOIN
+    wordsub_2
+    ON 
+    swears_specific%s.subreddit = wordsub_2.subreddit
+    AND
+    swears_specific%s.word = wordsub_2.word);""" % (suffix, suffix, suffix, suffix))
+    db.execute("""DELETE FROM swears_specific_expanded%s 
+    WHERE subreddit IS NULL;""" % suffix)
+    db.execute("""DELETE FROM swears_general_expanded%s 
+    WHERE subreddit IS NULL;""" % suffix)
+        
+    db.execute("""DROP TABLE word_list1""")
+    db.execute("""DROP TABLE word_list2""")
+    db.execute("""DROP TABLE wordsub_1""")
+    db.execute("""DROP TABLE wordsub_2""")
+    db.commit()
+    print 'expanded specific and general tables'
 
 def general_swear(swear):
     db = pgdb.Database('null_',{}, silence=True)
@@ -858,11 +943,12 @@ def specific_swear(swear):
     db = pgdb.Database('null_',{}, silence=True)
     while True:
         try:
+            swearlist = swears_inverted[swear]
             db.execute("""DROP TABLE IF EXISTS swear_%s;""" % word_tabname(swear))            
             db.execute("""CREATE TABLE swear_%s AS (
             SELECT DISTINCT id, subreddit
             FROM swear_comment_words%s 
-            WHERE word=%%s);""" % (word_tabname(swear), suffix), [swear])
+            WHERE word=ANY(%%s));""" % (word_tabname(swear), suffix), [swearlist])
             db.execute("""INSERT INTO swears_specific%s
             SELECT subreddit, %%s AS swear_word, 
             count(*) as swear_count
