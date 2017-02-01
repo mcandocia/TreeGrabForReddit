@@ -12,6 +12,7 @@ import random
 import socket
 from socket import AF_INET, SOCK_DGRAM
 from argparse import ArgumentParser
+from prawcore.exceptions import NotFound
 
 import rescraping
 
@@ -25,6 +26,7 @@ from moderator_scrape import scrape_moderators
 from subreddit_scrape import scrape_subreddits
 
 from praw_object_data import retry_if_broken_connection
+from get_unscraped_ids import get_unscraped_ids
 
 import pytz
 
@@ -196,6 +198,7 @@ def main(args):
 
 class options(object):
     """this class processes command-line input to create overall scraper options"""
+    
     def __init__(self, *args, **kwargs):
         #initialize global accumulators
         self.deepcounter = 0
@@ -244,6 +247,7 @@ class options(object):
                             help='if it exists, then whenever scraping is done from a subreddit, '\
                             'the thread chosen for scraping is chosen at random as opposed to '\
                             'being put in a queue')
+        
         parser.add_argument('--history',dest='history', nargs='*',choices=['threads','users',
                                                                            'comments',
                                                                            'subreddits'],
@@ -302,6 +306,7 @@ class options(object):
                             help='User information is not scraped if enabled')
         parser.add_argument('--grab-authors',action='store_true',dest='grabauthors',
                             help='Authors are scraped in addition to users of threads')
+        
         parser.add_argument('--rescrape-threads',action='store_true',dest='rescrape_threads',
                             help='Rescrape all posts that have been collected')
         parser.add_argument('--rescrape-users',action='store_true',dest='rescrape_users',
@@ -404,6 +409,10 @@ class options(object):
         parser.add_argument('--reappend-invalid-posts',dest='reappend',action='store_true',
                             help="Instead of discarding a post from the queue for a subreddit, "\
                             "sends the post to the back of the queue when it is deemed invalid.")
+        parser.add_argument('--n-unscraped-users-to-scrape',dest='n_unscraped_users_to_scrape',
+                            type=int, default=0, help="If specified, will add up to [argument]"\
+                            " number of users who appear in comments and threads but not user "\
+                            "history. Good for when previous scraping skips user collection.")
         print 'added arguments'
         args = parser.parse_args()
         print 'parsed arguments'
@@ -411,8 +420,9 @@ class options(object):
         self.args = args
         good_args = [a for a in dir(args) if not re.match('^_.*',a)]
         #DELETE
-        for arg in good_args:
-            print arg, getattr(args, arg), type(getattr(args, arg))
+        if args.verbose:
+            for arg in good_args:
+                print arg, getattr(args, arg), type(getattr(args, arg))
         if args.constants is not None:
             constants = __import__(args.constants)
             for constant in constants.kwargs:
@@ -481,6 +491,7 @@ class options(object):
         self.impose('min_occurrences_for_subreddit_in_db')
         self.impose('related_subreddit_recursion_depth')
         self.impose('reappend')
+        self.impose('n_unscraped_users_to_scrape')
         self.rank_type = self.rank_type
         for elem in ['nouser','grabauthors','rescrape_threads','rescrape_users',
                      'get_upvote_ratio','deepuser','log', 'drop_old_posts',
@@ -506,6 +517,8 @@ class options(object):
             self.history = []
         self.histories = {txt:txt not in self.history for txt in ['threads','comments','users']}
         self.db = db.Database(self.name, self.histories)
+        if self.n_unscraped_users_to_scrape > 0:
+            self.users.extend(get_unscraped_ids(self.db, self.n_unscraped_users_to_scrape))
         if args.hard_reset_quit:
             var = raw_input("ARE YOU SURE YOU WANT TO DELETE %s DATA? " % self.name)
             if var.lower() in ['y','yes']:
