@@ -28,6 +28,10 @@ class Database(object):
     schema and tables. It is vulnerable to injection, so don't use it if you don't 
     have a sanitized schema name."""
     dbtype = 'postgres'
+    def clone(self):
+        """returns a copy of itself, but with different connections/cursors"""
+        return Database(self.name, self,unique_ids, self.silence)
+    
     def __init__(self, name=default_schema,
                  unique_ids={'comments':True,'users':True,'threads':True,'subreddits':True},
                  silence=False):
@@ -37,6 +41,7 @@ class Database(object):
         self.cur = self.conn.cursor()
         if not silence:
             print unique_ids
+        self.unique_ids = unique_ids#for clone method
         self.schema=name
         self.silence = silence
         if not silence:
