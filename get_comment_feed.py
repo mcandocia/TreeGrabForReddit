@@ -61,14 +61,17 @@ def main():
         if counter % 5 == 0:
             sys.stdout.write('.')
             sys.stdout.flush()
-        subreddit = scraper.subreddit(opts.subreddits[counter % len(opts.subreddits)])
-        comments = subreddit.comments(limit=100)
-        process_comments(comments, opts)
+        process_subreddit(opts.subreddits[counter % len(opts.subreddits)], opts, scraper)
         #p = Process(target=process_comments, args=(comments, opts))
         counter += 1
         if counter % 100 == 0:
             print 'total comments processed: %s' % len(opts.COMMENT_ID_SET)
     print 'done'
+@retry_if_broken_connection
+def process_subreddit(subreddit_text, opts, scraper):
+    subreddit = scraper.subreddit(subreddit_text)
+    comments = subreddit.comments(limit=100)
+    process_comments(comments, opts)
 
 @retry_if_broken_connection
 def process_comments(comments, opts):
