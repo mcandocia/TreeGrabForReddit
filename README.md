@@ -22,6 +22,11 @@ The basic command format is
 python scraper.py SCHEMA_NAME --ids id1 id2 id3...
 ```
 
+I also have another script, **get_comment_feed.py**, that allows you to get the top comments from any subreddit, including /r/all. The only downside is that they are new, so their final score/edits have yet to appear. The format for this command is
+
+```bash
+python get_comment_feed.py SCHEMA_NAME --subreddits sub1 sub2...```
+
 You can use `--help` if you want more details, but not all of the functions/features are implemented yet.
 
 # Requirements
