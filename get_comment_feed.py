@@ -56,9 +56,11 @@ def main():
     opts = options()
     counter = 0
     scraper = praw_user.scraper()
+    print 'starting collection...'
     while opts.N < 0 or counter < opts.N:
-        sys.stdout.print('.')
-        sys.stdout.flush()
+        if counter % 5 == 0:
+            sys.stdout.write('.')
+            sys.stdout.flush()
         subreddit = scraper.subreddit(opts.subreddits[counter % len(opts.subreddits)])
         comments = subreddit.comments(limit=100)
         process_comments(comments, opts)
@@ -67,7 +69,8 @@ def main():
         if counter % 100 == 0:
             print 'total comments processed: %s' % len(opts.COMMENT_ID_SET)
     print 'done'
-    
+
+@retry_if_broken_connection
 def process_comments(comments, opts):
     data_dict = {}
     for comment in comments:
