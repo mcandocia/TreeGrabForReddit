@@ -12,7 +12,7 @@ import random
 import socket
 from socket import AF_INET, SOCK_DGRAM
 from argparse import ArgumentParser
-from prawcore.exceptions import NotFound
+from prawcore.exceptions import NotFound, Forbidden
 
 import rescraping
 
@@ -61,12 +61,17 @@ def main():
         if counter % 5 == 0:
             sys.stdout.write('.')
             sys.stdout.flush()
-        process_subreddit(opts.subreddits[counter % len(opts.subreddits)], opts, scraper)
+        try:
+            process_subreddit(opts.subreddits[counter % len(opts.subreddits)], opts, scraper)
+        except Forbidden:
+            print 'forbidden error...continuing...'
+            continue
         #p = Process(target=process_comments, args=(comments, opts))
         counter += 1
         if counter % 100 == 0:
             print 'total comments processed: %s' % len(opts.COMMENT_ID_SET)
     print 'done'
+
 @retry_if_broken_connection
 def process_subreddit(subreddit_text, opts, scraper):
     subreddit = scraper.subreddit(subreddit_text)
