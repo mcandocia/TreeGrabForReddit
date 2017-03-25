@@ -52,7 +52,7 @@ def retry_if_broken_connection(f):
             except InternalError, ProgrammingError:
                 print sys.exc_info()
                 raise
-            except RequestException:
+            except RequestException, ServerError:
                 print sys.exc_info()
                 print 'sleeping...'
                 time.sleep(10)
@@ -233,10 +233,10 @@ def get_subreddit_data(subreddit, opts, recursion_depth=0):
         print sys.exc_info()
         print 'subreddit data not found'
         return {}
-    except ServerError:
-        print sys.exc_info()
-        print 'server error!'
-        raise ServerError
+    #except ServerError:
+    #print sys.exc_info()
+    #print 'server error!'
+    #raise ServerError
     if opts.scrape_related_subreddits:
         related_subreddits_data = get_related_subreddits(subreddit, opts, now)
     else:
