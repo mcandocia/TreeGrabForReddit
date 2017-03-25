@@ -6,7 +6,7 @@ from praw_object_data import retry_if_broken_connection
 def process_thread(thread_id, opts, reddit_scraper):
         thread = reddit_scraper.submission(id=thread_id)
         if thread.num_comments > opts.max_comments:
-                print 'too many comments: %d' thread.num_comments
+                print 'too many comments: %d' % thread.num_comments
                 print 'skipping thread id %s' % thread_id
                 return 2
         print thread_id#keep until certain bug issue is gone
