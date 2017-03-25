@@ -77,6 +77,9 @@ def construct_min_comments_part_of_query(opts):
     else:
         return ' num_comments=%d ' % opts.mincomments
 
+def construct_max_comments_part_of_query(opts):
+    return ' max_comments=%d ' % opts.max_comments
+
 def rescrape_users(scraper, opts):
     query = ((''' SELECT username FROM %s.users WHERE ''' +
              'AND'.join([construct_age_part_of_query(opts, True),
@@ -104,7 +107,8 @@ def rescrape_threads(scraper, opts):
                              construct_delay_part_of_query(opts),
                              construct_subreddit_part_of_thread_query(opts),
                              construct_scrape_mode_part_of_query(opts),
-                             construct_min_comments_part_of_query(opts)]) +
+                             construct_min_comments_part_of_query(opts),
+                             construct_max_comments_part_of_query(opts)]) +
                  ' ORDER BY random();') % opts.db.schema
         print query
         opts.db.execute(query)
