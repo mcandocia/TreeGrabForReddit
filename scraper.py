@@ -80,6 +80,8 @@ def validate_post(post, opts):
                 return False
             
     #check if already in database, then check if able to be rescraped
+    if post.num_comments > opts.max_comments:
+        return False
     update_time = opts.db.get_thread_update_time(post.id)
     if update_time is None:
         return True
@@ -414,6 +416,9 @@ class options(object):
                             " number of users who appear in comments and threads but not user "\
                             "history. Good for when previous scraping skips user collection.")
         print 'added arguments'
+        parser.add_argument('--max-comments',dest='max_comments',
+                            type=int, default=1e6, help="Will only scrape threads if number of "
+                            "comments is less than or equal to this value.")
         args = parser.parse_args()
         print 'parsed arguments'
         #load template if exists
@@ -475,6 +480,7 @@ class options(object):
         #simple arguments
         self.impose('age')
         self.impose('mincomments')
+        self.impose('max_comments')
         self.impose('history')
         self.impose('post_refresh_time')
         self.impose('thread_delay')
