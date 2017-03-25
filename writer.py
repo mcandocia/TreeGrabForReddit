@@ -22,8 +22,9 @@ def write_user(data, opts):
         last_time = db.fetchall()[0][0]
         if last_time is None:
             db.insert_user(data)
-        elif opts.user_delay == -1 or ((data['timestamp'] - last_time).seconds*seconds_to_days < \
-                                       opts.user_delay - (data['timestamp'] - last_time).days):
+        elif opts.user_delay == -1 or \
+             ((data['timestamp'] - last_time).seconds*seconds_to_days < \
+              opts.user_delay - (data['timestamp'] - last_time).days):
             if opts.verbose:
                 print 'already have %s in database' % data['username']
             return False
