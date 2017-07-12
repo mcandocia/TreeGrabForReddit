@@ -63,7 +63,7 @@ class Database(object):
             score INT,
             percentage FLOAT,
             author_name VARCHAR(30),
-            author_id VARCHAR(6),
+            author_id VARCHAR(7),
             edited TIMESTAMP,
             author_flair TEXT,
             author_flair_css_class TEXT,
@@ -100,7 +100,7 @@ class Database(object):
             score INT,
             percentage FLOAT,
             author_name VARCHAR(30),
-            author_id VARCHAR(6),
+            author_id VARCHAR(7),
             edited TIMESTAMP,
             author_flair TEXT,
             author_flair_css_class TEXT,
@@ -133,7 +133,7 @@ class Database(object):
             #manually encountered
             self.cur.execute("""CREATE TABLE IF NOT EXISTS %s.users(
             username VARCHAR(30) PRIMARY KEY,
-            id VARCHAR(6),
+            id VARCHAR(7),
             comment_karma INT,
             post_karma INT,
             is_mod BOOLEAN,
@@ -148,7 +148,7 @@ class Database(object):
         else:
             self.cur.execute("""CREATE TABLE IF NOT EXISTS %s.users(
             username VARCHAR(30),
-            id VARCHAR(6),
+            id VARCHAR(7),
             comment_karma INT,
             post_karma INT,
             is_mod BOOLEAN,
@@ -168,7 +168,7 @@ class Database(object):
             self.cur.execute("""CREATE TABLE IF NOT EXISTS %s.comments(
             id VARCHAR(8) PRIMARY KEY,
             author_name VARCHAR(30),
-            author_id VARCHAR(6),
+            author_id VARCHAR(7),
             parent_id VARCHAR(11),
             is_root BOOLEAN,
             text TEXT,
@@ -193,7 +193,7 @@ class Database(object):
             self.cur.execute("""CREATE TABLE IF NOT EXISTS %s.comments(
             id VARCHAR(8),
             author_name VARCHAR(30),
-            author_id VARCHAR(6),
+            author_id VARCHAR(7),
             parent_id VARCHAR(11),
             is_root BOOLEAN,
             text TEXT,
