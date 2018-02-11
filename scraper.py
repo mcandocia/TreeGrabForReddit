@@ -8,6 +8,7 @@ from exceptions import UnicodeDecodeError, IndexError, AttributeError
 import calendar
 import datetime
 import sys
+import codecs
 import random
 import socket
 from socket import AF_INET, SOCK_DGRAM
@@ -29,8 +30,9 @@ from praw_object_data import retry_if_broken_connection
 from get_unscraped_ids import get_unscraped_ids
 
 import pytz
-
 import db
+
+sys.stdout = codecs.getwriter('utf8')(sys.stdout)
 
 #used for keyboard interrupt logging
 logging = False
