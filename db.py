@@ -53,6 +53,7 @@ class Database(object):
         if not silence:
             print 'made schema'
         self.make_log_table()
+
         if unique_ids.get('threads',True):
             self.cur.execute("""CREATE TABLE IF NOT EXISTS %s.threads(
             id CHAR(6) PRIMARY KEY,
@@ -72,8 +73,11 @@ class Database(object):
             is_distinguished BOOLEAN,
             is_spoiler BOOLEAN,
             gold INT,
+            silver INT DEFAULT 0,
+            platinum INT DEFAULT 0,
             is_self BOOLEAN,
             is_stickied BOOLEAN,
+            is_pinned BOOLEAN DEFAULT false,
             url TEXT,
             self_text TEXT,
             over_18 BOOLEAN,
@@ -91,6 +95,7 @@ class Database(object):
                 USING id TABLESPACE %s;""" % (self.schema,'thread_id_index',
                                                     self.schema, tablespace))'''
         else:
+
             self.cur.execute("""CREATE TABLE IF NOT EXISTS %s.threads(
             id CHAR(6),
             title TEXT,
@@ -109,7 +114,10 @@ class Database(object):
             is_distinguished BOOLEAN,
             is_spoiler BOOLEAN,
             gold INT,
+            silver INT DEFAULT 0,
+            platinum INT DEFAULT 0,
             is_self BOOLEAN,
+            is_pinned BOOLEAN DEFAULT false,
             is_stickied BOOLEAN,
             url TEXT,
             self_text TEXT,
@@ -124,6 +132,7 @@ class Database(object):
             scrape_mode VARCHAR(10),--'thread|list|profile|minimal'
             timestamp TIMESTAMP
             );""" % self.schema)
+
         if not self.silence:
             print 'made threads table'
         if unique_ids.get('users',True):
@@ -146,6 +155,7 @@ class Database(object):
             );""" % self.schema)
             
         else:
+
             self.cur.execute("""CREATE TABLE IF NOT EXISTS %s.users(
             username VARCHAR(30),
             id VARCHAR(7),
@@ -164,6 +174,7 @@ class Database(object):
             (self.schema,'user_id_index',self.schema, tablespace))'''
         if not self.silence:
             print 'made users table'
+
         if unique_ids.get('comments', True):
             self.cur.execute("""CREATE TABLE IF NOT EXISTS %s.comments(
             id VARCHAR(8) PRIMARY KEY,
@@ -175,6 +186,9 @@ class Database(object):
             created TIMESTAMP,
             edited TIMESTAMP,
             gold INT,
+            silver INT DEFAULT 0,
+            platinum INT DEFAULT 0,
+            is_stickied BOOLEAN DEFAULT false,
             score INT,
             is_distinguished BOOLEAN,
             thread_id VARCHAR(8),
@@ -200,6 +214,9 @@ class Database(object):
             created TIMESTAMP,
             edited TIMESTAMP,
             gold INT,
+            silver INT DEFAULT 0,
+            platinum INT DEFAULT 0,
+            is_stickied BOOLEAN DEFAULT false,
             score INT,
             is_distinguished BOOLEAN,
             thread_id VARCHAR(8),
