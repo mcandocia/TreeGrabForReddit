@@ -56,7 +56,7 @@ class Database(object):
 
         if unique_ids.get('threads',True):
             self.cur.execute("""CREATE TABLE IF NOT EXISTS %s.threads(
-            id CHAR(6) PRIMARY KEY,
+            id CHAR(7) PRIMARY KEY,
             title TEXT,
             subreddit VARCHAR(30),
             subreddit_id VARCHAR(9),
@@ -64,7 +64,7 @@ class Database(object):
             score INT,
             percentage FLOAT,
             author_name VARCHAR(30),
-            author_id VARCHAR(7),
+            author_id VARCHAR(8),
             edited TIMESTAMP,
             author_flair TEXT,
             author_flair_css_class TEXT,
@@ -97,7 +97,7 @@ class Database(object):
         else:
 
             self.cur.execute("""CREATE TABLE IF NOT EXISTS %s.threads(
-            id CHAR(6),
+            id CHAR(7),
             title TEXT,
             subreddit VARCHAR(30),
             subreddit_id VARCHAR(9),
@@ -105,7 +105,7 @@ class Database(object):
             score INT,
             percentage FLOAT,
             author_name VARCHAR(30),
-            author_id VARCHAR(7),
+            author_id VARCHAR(8),
             edited TIMESTAMP,
             author_flair TEXT,
             author_flair_css_class TEXT,
@@ -142,7 +142,7 @@ class Database(object):
             #manually encountered
             self.cur.execute("""CREATE TABLE IF NOT EXISTS %s.users(
             username VARCHAR(30) PRIMARY KEY,
-            id VARCHAR(7),
+            id VARCHAR(8),
             comment_karma INT,
             post_karma INT,
             is_mod BOOLEAN,
@@ -158,7 +158,7 @@ class Database(object):
 
             self.cur.execute("""CREATE TABLE IF NOT EXISTS %s.users(
             username VARCHAR(30),
-            id VARCHAR(7),
+            id VARCHAR(8),
             comment_karma INT,
             post_karma INT,
             is_mod BOOLEAN,
@@ -179,7 +179,7 @@ class Database(object):
             self.cur.execute("""CREATE TABLE IF NOT EXISTS %s.comments(
             id VARCHAR(8) PRIMARY KEY,
             author_name VARCHAR(30),
-            author_id VARCHAR(7),
+            author_id VARCHAR(8),
             parent_id VARCHAR(11),
             is_root BOOLEAN,
             text TEXT,
@@ -207,7 +207,7 @@ class Database(object):
             self.cur.execute("""CREATE TABLE IF NOT EXISTS %s.comments(
             id VARCHAR(8),
             author_name VARCHAR(30),
-            author_id VARCHAR(7),
+            author_id VARCHAR(8),
             parent_id VARCHAR(11),
             is_root BOOLEAN,
             text TEXT,
@@ -552,7 +552,7 @@ class Database(object):
         self.execute("""CREATE TABLE IF NOT EXISTS %s.related_subreddits(
         subreddit VARCHAR(30),
         related_subreddit VARCHAR(30),
-        relationship_type VARCHAR(7),
+        relationship_type VARCHAR(8),
         wiki_name TEXT,
         related_is_private BOOLEAN,
         timestamp TIMESTAMP)""" % self.schema)
