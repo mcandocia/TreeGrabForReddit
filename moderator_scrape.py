@@ -19,6 +19,7 @@ def get_subreddit_table_subreddits(opts):
 
 def get_target_subreddits(opts):
     db = opts.db
+    print opts.subreddits
     if not opts.moderators_all:
         if opts.repeat_moderator_subreddits:
             target_subreddits = opts.subreddits

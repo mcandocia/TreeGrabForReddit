@@ -44,7 +44,7 @@ def scrape_subreddits(opts, scraper):
     subreddit_counter = 0
     subreddit_set = set()
     n_subreddits = len(subreddit_list)
-    while opts.n_subreddits_to_scrape == -1 or subreddit_counter < opts.n_subreddits_to_scrape:
+    while n_subreddits == -1 or subreddit_counter < n_subreddits:
         subreddit_text = subreddit_list[subreddit_counter % n_subreddits]
         if subreddit_text in subreddit_set and not opts.repeat_subreddit_scraping:
             if opts.verbose:

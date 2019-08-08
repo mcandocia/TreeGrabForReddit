@@ -107,9 +107,18 @@ def select_post(subreddit_name, post_dict, opts, reddit_scraper, refreshed=False
         elif opts.reappend:
             valid_posts.append(post)
     if not refreshed:
+        if subreddit_name in opts.subreddit_refresh_timer_dict:
+            time_remaining = time.time() - opts.subreddit_refresh_timer_dict[subreddit_name] < opts.subreddit_dict_refresh_min_period
+            if time_remaining > 0:
+                print 'not enough time has passed to refresh dict (%ss remaining)' % round(time_remaining)
+                return None
         print 'refreshing dictionary for %s' % subreddit_name
-        post_dict[subreddit_name] = get_subreddit_posts(reddit_scraper.subreddit(subreddit_name),
-                                                        opts)
+        post_dict[subreddit_name] = get_subreddit_posts(
+            reddit_scraper.subreddit(subreddit_name),
+            opts
+        )
+        opts.subreddit_refresh_timer_dict[subreddit_name] = time.time()
+        
         return select_post(subreddit_name, post_dict, opts, reddit_scraper, refreshed=True)
     else:
         print 'cannot find valid entries for %s' % subreddit_name
@@ -419,6 +428,13 @@ class options(object):
         parser.add_argument('--max-comments',dest='max_comments',
                             type=int, default=1e6, help="Will only scrape threads if number of "
                             "comments is less than or equal to this value.")
+
+        parser.add_argument('--subreddit-dict-refresh-min-period',
+                            dest='subreddit_dict_refresh_min_period',
+                            type=int,
+                            default=300,
+                            help='Minimum time between refreshes of a subreddit\'s dictionary'
+        )
         args = parser.parse_args()
         print 'parsed arguments'
         #load template if exists
@@ -498,6 +514,7 @@ class options(object):
         self.impose('related_subreddit_recursion_depth')
         self.impose('reappend')
         self.impose('n_unscraped_users_to_scrape')
+        self.impose('subreddit_dict_refresh_min_period')
         self.rank_type = self.rank_type
         for elem in ['nouser','grabauthors','rescrape_threads','rescrape_users',
                      'get_upvote_ratio','deepuser','log', 'drop_old_posts',
@@ -557,6 +574,9 @@ class options(object):
         #of limited N or suppressed (default)
         if self.rescrape_users or self.rescrape_threads:
             self.N = max(0, self.N)
+
+        # used to keep track of how frequently refreshes are made
+        self.subreddit_refresh_timer_dict = {}
 
         print 'intialized database'
     
