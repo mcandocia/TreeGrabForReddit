@@ -292,7 +292,7 @@ class Database(object):
     def get_subreddit_update_time(self, subreddit_text):
         try:
             self.execute(("SELECT max(timestamp) FROM %s.subreddits WHERE" % self.schema) +\
-                         " subreddit=%s",[subreddit_text])
+                         " lower(subreddit)=lower(%s)",[subreddit_text])
             return self.fetchall()[0][0]
         except:
             print sys.exc_info()
