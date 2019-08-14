@@ -15,6 +15,7 @@ from praw.models.reddit.comment import Comment
 from praw.models.reddit.subreddit import Subreddit
 
 import json
+from functools import wraps
 
 import pytz
 
@@ -34,6 +35,7 @@ def check_time(init_time, time_delta):
 
 #update this over time with appropriate errors; monitor while it's relaxed
 def retry_if_broken_connection(f):
+    @wraps(f)
     def func(*args, **kwargs):
         while True:
             try:
@@ -144,8 +146,8 @@ def get_thread_data(thread, opts, mode='minimal'):
             'is_distinguished':thread.distinguished is not None,
             'is_spoiler':thread.spoiler,
             'gold':thread.gilded,
-            'silver': thread.gildings.get('gld_1', 0),
-            'platinum': thread.gildings.get('gld_3', 0),
+            'silver': thread.gildings.get('gid_1', 0),
+            'platinum': thread.gildings.get('gid_3', 0),
             'domain':thread.domain,
             'is_self':thread.is_self,
             'is_stickied':thread.stickied,
@@ -192,8 +194,8 @@ def get_comment_data(comment, opts, mode='minimal', author_id=None):
                 'created':datetime.fromtimestamp(comment.created_utc),
                 'edited':edited,
                 'gold':comment.gilded,
-                'silver': comment.gildings.get('gld_1', 0),
-                'platinum': comment.gildings.get('gld_3', 0),
+                'silver': comment.gildings.get('gid_1', 0),
+                'platinum': comment.gildings.get('gid_3', 0),
                 'is_stickied': comment.stickied,
                 'score':comment.score,
                 'is_distinguished':comment.distinguished is not None,
@@ -217,6 +219,7 @@ def get_comment_data(comment, opts, mode='minimal', author_id=None):
 #related_subreddit_recursion_depth
 @retry_if_broken_connection
 def get_subreddit_data(subreddit, opts, recursion_depth=0):
+    print 'attempting to get subreddit data'
     now = datetime.now()
     try:
         data = {
@@ -243,14 +246,20 @@ def get_subreddit_data(subreddit, opts, recursion_depth=0):
     #print 'server error!'
     #raise ServerError
     if opts.scrape_related_subreddits:
+        if opts.verbose:
+            print 'getting related subreddits'
         related_subreddits_data = get_related_subreddits(subreddit, opts, now)
     else:
         related_subreddits_data = None
     if opts.scrape_wikis and data['has_wiki']:
+        if opts.verbose:
+            print 'getting wiki data'
         wiki_data = get_wiki_data(subreddit, opts, related_subreddits_data, now)
     else:
         wiki_data = None
     if opts.scrape_traffic and data['public_traffic']:
+        if opts.verbose:
+            print 'getting traffic data'
         traffic_data = get_traffic_data(subreddit, opts, now)
     else:
         traffic_data = None
@@ -292,11 +301,20 @@ def get_related_subreddits(subreddit, opts, timestamp):
 
 @retry_if_broken_connection
 def get_wiki_data(subreddit, opts, related_subreddits, timestamp):
+    if opts.verbose:
+        print 'loading subreddit wiki'
     wikis = subreddit.wiki
+    if opts.verbose:
+        print 'getting content from wikis'
+    wikis = list(wikis)
+    if len(wikis) > 120:
+        print 'SKIPPING WIKI BECAUSE LENGTH IS %s' % len(wikis)
+        return []
     wiki_text_list = [get_content_or_blank(w) for w in wikis]
     wiki_name = [w.name for w in wikis]
     wiki_data = []
     for name, text in zip(wiki_name, wiki_text_list):
+        #print 'on wiki %s' % repr(wiki_name)
         if len(text)==0:
             continue
         wiki_data.append({'subreddit':subreddit.display_name,
@@ -304,6 +322,8 @@ def get_wiki_data(subreddit, opts, related_subreddits, timestamp):
                           'name':name,
                           'timestamp':timestamp})
         if opts.scrape_related_subreddits:
+            if opts.verbose:
+                print 'searching for related subreddits'
             subreddits = search_for_subreddits(subreddit.description)
             new_data = [{'subreddit':subreddit.display_name,
                          'related_subreddit':sub.lower(),
@@ -316,11 +336,17 @@ def get_wiki_data(subreddit, opts, related_subreddits, timestamp):
 @retry_if_broken_connection
 def get_content_or_blank(wiki):
     if wiki is None:
+        print 'no wiki'
         return ''
     else:
         try:
             return wiki.content_md
         except TypeError:
+            print 'typeerror encountered in wiki'
             return ''
+        except Exception as e:
+            print e
+            raise e
+            
 
     
