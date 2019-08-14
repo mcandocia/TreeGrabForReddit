@@ -162,6 +162,8 @@ def main(args):
     n_subreddits = len(opts.subreddits)
     subreddit_post_dict = {}
     old_subreddit_post_dict = {}
+    if opts.shuffle_subreddits:
+        random.shuffle(opts.subreddits)
     while (opts.N == -1 or counter < opts.N) and n_subreddits > 0:
         subreddit_name = opts.subreddits[counter % n_subreddits]
         if subreddit_name not in subreddit_post_dict or subreddit_name in ['random','randnsfw']:
@@ -435,6 +437,8 @@ class options(object):
                             default=300,
                             help='Minimum time between refreshes of a subreddit\'s dictionary'
         )
+        parser.add_argument('--shuffle-subreddits', dest='shuffle_subreddits',
+                            action='store_true', help='Will shuffle order or loaded subreddits. Good if you do not want the same order each tiem the code is run (can save on memory leaks if you put it in a shell script).')
         args = parser.parse_args()
         print 'parsed arguments'
         #load template if exists
@@ -515,6 +519,7 @@ class options(object):
         self.impose('reappend')
         self.impose('n_unscraped_users_to_scrape')
         self.impose('subreddit_dict_refresh_min_period')
+        self.impose('shuffle_subreddits')        
         self.rank_type = self.rank_type
         for elem in ['nouser','grabauthors','rescrape_threads','rescrape_users',
                      'get_upvote_ratio','deepuser','log', 'drop_old_posts',
