@@ -151,6 +151,14 @@ class Database(object):
             shadowbanned_by_date TIMESTAMP,
             suspended_by_date TIMESTAMP,
             deleted_by_date TIMESTAMP,
+            submissions_silver INT,
+            submissions_gold INT,
+            submissions_platinum INT,
+            comments_silver INT,
+            comments_gold INT,
+            comments_platinum INT,
+            verified BOOLEAN,
+            gilded_visible BOOLEAN,
             timestamp TIMESTAMP
             );""" % self.schema)
             
@@ -167,6 +175,14 @@ class Database(object):
             shadowbanned_by_date TIMESTAMP,
             suspended_by_date TIMESTAMP,
             deleted_by_date TIMESTAMP,
+            submissions_silver INT,
+            submissions_gold INT,
+            submissions_platinum INT,
+            comments_silver INT,
+            comments_gold INT,
+            comments_platinum INT,
+            verified BOOLEAN,
+            gilded_visible BOOLEAN,
             timestamp TIMESTAMP
             );""" % self.schema)
             '''self.execute("""CREATE INDEX IF NOT EXISTS %s.%s ON %s.users 
@@ -256,6 +272,8 @@ class Database(object):
         self.commit()
 
     def get_user_update_time(self, user_id):
+        if user_id is None:
+            return None
         try:
             self.execute(("SELECT max(timestamp) FROM %s.users WHERE" % self.schema) +\
                          " id=%s",[user_id])
@@ -272,9 +290,23 @@ class Database(object):
         else:
             now = datetime.datetime.now(pytz.utc)
             update_time = pytz.utc.localize(update_time)
-            if (now - update_time).seconds < 3600*24 * opts.user_delay - (now-update_time).days:
+            if (now - update_time).seconds < 3600*24 * opts.user_delay:# - (now-update_time).days:
                 return False
             return True
+
+    def filter_users(self, opts):
+        # just get all of the darn data
+        print 'Filtering %d users' % len(opts.users)
+        now = pytz.utc.localize(datetime.datetime.now())
+        self.execute("SELECT username, timestamp FROM %s.users" % self.schema)
+        user_timestamps = {x[0]: pytz.utc.localize(x[1]) for x in self.fetchall()}
+        opts.users = [
+            user for user in opts.users
+            if user not in user_timestamps
+            or ((now - user_timestamps.get(user, now)).seconds >= 3600*24 * opts.user_delay and opts.user_delay != -1)
+        ]
+        print 'Now have %d users remaining after filtering' % len(opts.users)
+        return True
         
     def get_thread_update_time(self, thread_id):
         try:

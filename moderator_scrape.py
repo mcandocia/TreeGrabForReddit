@@ -57,11 +57,15 @@ def get_target_subreddits(opts):
 def scrape_subreddit_for_moderators(subreddit, opts, scraper):
     print subreddit
     sub = scraper.subreddit(subreddit)
-    mods = [x for x in sub.moderator()]
+    try:
+        mods = [x for x in sub.moderator()]
+    except prawcore.exceptions.Forbidden:
+        print 'Cannot read moderators of subreddit (probably private)'
+        return False
     #in case user missed capitalization
     subreddit_proper_name = sub.display_name
     print '+-----------------------------+'
-    print 'getting data for /r/%s' % subreddit_proper_name
+    print 'getting moderator data for /r/%s' % subreddit_proper_name
     current_time = datetime.datetime.now()
     for i, mod in enumerate(mods):
         if opts.verbose:
@@ -73,6 +77,8 @@ def scrape_subreddit_for_moderators(subreddit, opts, scraper):
                                                            i)
         )
         if opts.scrape_moderators:
+            if opts.verbose:
+                print 'Scraping moderators of /r/%s' % subreddit_proper_name
             if str(mod) in opts.master_moderator_set:
                 continue
             data = get_user_data(mod, opts, 'minimal')

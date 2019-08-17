@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 import time
 import sys
 import re
+from collections import Counter
 from psycopg2 import InternalError, ProgrammingError
 from prawcore.exceptions import NotFound
 from prawcore.exceptions import RequestException
@@ -70,7 +71,42 @@ def get_user_data(user, opts, mode='thread'):
                 'is_mod':user.is_mod,
                 'account_created':datetime.fromtimestamp(user.created_utc),
                 'is_gold':user.is_gold,
-                'timestamp':datetime.now()}
+                'timestamp':datetime.now(),
+                'verified': user.verified}
+        if opts.user_gildings:
+            print('getting gildings')
+            try:
+                gildings = list(user.gilded())
+                comment_gildings = Counter()
+                gilded_comments = [
+                    e for e in gildings
+                    if isinstance(e, Comment)
+                ]
+                
+                submission_gildings = Counter()
+                gilded_submissions = [
+                    e for e in gildings
+                    if isinstance(e, Submission)
+                ]
+
+                [comment_gildings.update(c.gildings) for c in gilded_comments]
+                [submission_gildings.update(s.gildings) for s in gilded_submissions]
+                gilding_data = {
+
+                    'gilded_visible': True,
+                    'submissions_silver': submission_gildings.get('gid_1', 0),
+                    'submissions_gold': submission_gildings.get('gid_2', 0),
+                    'submissions_platinum': submission_gildings.get('gid_3', 0),
+                    'comments_silver': comment_gildings.get('gid_1', 0),
+                    'comments_gold': comment_gildings.get('gid_2', 0),
+                    'comments_platinum': comment_gildings.get('gid_3', 0),
+                }
+                
+            except Exception as e:
+                print(e)
+                gilding_data = {'gilded_visible': False}
+
+            data.update(gilding_data)
         #get comment history
         comment_history = user.comments.new(limit=opts.user_comment_limit)
         comments = {}
@@ -92,10 +128,16 @@ def get_user_data(user, opts, mode='thread'):
             print user.name
             print 'forbidden post history for some reason'
     except (NotFound, AttributeError) as err:
+        # 
+        extra_data = {}
         if isinstance(err, NotFound):
             print '%s is shadowbanned' % str(user)
+            extra_data['shadowbanned_by_date'] = datetime.now()
         elif isinstance(err, AttributeError):
+            print(err)
+            extra_data['suspended_by_date'] = datetime.now()
             print '%s is suspended' % str(user)
+            
         comments = {}
         threads = {}
         data = {'username':user.name,
@@ -106,6 +148,7 @@ def get_user_data(user, opts, mode='thread'):
                 'account_created':None,
                 'is_gold':None,
                 'timestamp':datetime.now()}
+        data.update(extra_data)
     return {'userdata':data,
             'commentdata':comments,
             'threaddata':threads}

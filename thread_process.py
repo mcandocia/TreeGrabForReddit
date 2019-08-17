@@ -12,8 +12,11 @@ def process_thread(thread_id, opts, reddit_scraper):
         print thread_id#keep until certain bug issue is gone
         start = datetime.datetime.now()
         print '+------------------------------------------------------+'
-        print 'PROCESSING %s, id=%s, in /r/%s' % (thread.title, thread.id,
-                                                  thread.subreddit.display_name)
+        try:
+                print 'PROCESSING %s, id=%s, in /r/%s' % (unicode(thread.title), thread.id,
+                                                  unicode(thread.subreddit.display_name))
+        except UnicodeDecodeError:
+                print 'PROCESSING id=%s; name cannot be parsed' % thread.id
         print 'created %s' % datetime.datetime.fromtimestamp(thread.created).strftime('%x %X')
         print 'author: %s' % str(thread.author)
         print 'score: %d, num_comments: %d' % (thread.score, thread.num_comments)

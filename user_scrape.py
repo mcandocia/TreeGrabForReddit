@@ -18,8 +18,11 @@ def scrape_user(username, opts, scraper, force_read=False):
         user = scraper.redditor(username)
         user_id = user.id
     except (NotFound, RequestException, AttributeError):
+
+        # going to see what happens if I let praw_object_data.py catch this
+        user_id = None
         print 'user %s is not a valid user' % username
-        return 1
+        #return 1
     
     previous_time = localize(opts.db.get_user_update_time(user_id))
     if previous_time is None or force_read:

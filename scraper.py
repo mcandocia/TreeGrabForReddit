@@ -129,6 +129,11 @@ def get_subreddit(subreddit_name, scraper):
     return scraper.subreddit(subreddit_name)
 
 
+def filter_users(opts):
+    # filter out users who have already been scraped
+    opts.db.filter_users(opts)
+    # yeah, great programming...
+
 
 @clean_keyboardinterrupt
 def main(args):
@@ -136,6 +141,7 @@ def main(args):
     reddit_scraper = scraper()
     #parse users
     if len(opts.users) > 0:
+        filter_users(opts)
         opts.old_user_comment_limit = opts.user_comment_limit
         opts.old_user_thread_limit = opts.user_thread_limit
         if opts.man_user_comment_limit <> None:
@@ -439,6 +445,8 @@ class options(object):
         )
         parser.add_argument('--shuffle-subreddits', dest='shuffle_subreddits',
                             action='store_true', help='Will shuffle order or loaded subreddits. Good if you do not want the same order each tiem the code is run (can save on memory leaks if you put it in a shell script).')
+        parser.add_argument('--user-gildings', dest='user_gildings', action='store_true',
+                            help='Will scrape user history for gildings (silver, gold, platinum) if toggled; may take extra time')
         args = parser.parse_args()
         print 'parsed arguments'
         #load template if exists
@@ -519,7 +527,8 @@ class options(object):
         self.impose('reappend')
         self.impose('n_unscraped_users_to_scrape')
         self.impose('subreddit_dict_refresh_min_period')
-        self.impose('shuffle_subreddits')        
+        self.impose('shuffle_subreddits')
+        self.impose('user_gildings')
         self.rank_type = self.rank_type
         for elem in ['nouser','grabauthors','rescrape_threads','rescrape_users',
                      'get_upvote_ratio','deepuser','log', 'drop_old_posts',
@@ -529,7 +538,7 @@ class options(object):
                      'scrape_moderators','scrape_subreddits','scrape_subreddits_in_db',
                      'repeat_subreddit_scraping','use_subreddit_table_for_moderators',
                      'rescrape_subreddits','scrape_related_subreddits','scrape_wikis',
-                     'scrape_traffic']:
+                     'scrape_traffic', 'user_gildings']:
             setattr(self, elem, handle_boolean(self, args, elem))
         self.impose('N')
         self.dictionary_time = datetime.datetime.now()
