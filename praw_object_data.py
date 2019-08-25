@@ -63,6 +63,8 @@ def retry_if_broken_connection(f):
 
 @retry_if_broken_connection
 def get_user_data(user, opts, mode='thread'):
+    gilded_comments = []
+    gilded_submissions = []
     try:
         data = {'username':user.name,
                 'id':user.id,
@@ -118,15 +120,30 @@ def get_user_data(user, opts, mode='thread'):
             print user.name
             print 'forbidden comment history for some reason'
 
+            
+
         #get submission history
         post_history = user.submissions.new(limit=opts.user_thread_limit)
         threads = {}
+
+        
         try:
             for i, post in enumerate(post_history):
                 threads.update(get_thread_data(post, opts, mode='minimal'))
         except Forbidden:
             print user.name
             print 'forbidden post history for some reason'
+
+        if opts.scrape_gilded and opts.user_gildings:
+            for i, post in enumerate(gilded_submissions):
+                if post.id not in threads:
+                    td = get_thread_data(post, opts, mode='gildings')
+                    threads.update(td)
+            for i, comment in enumerate(gilded_comments):
+                if comment.id not in comments:
+                    cd = get_comment_data(comment, opts, mode='gildings')
+                    comments.update(cd)
+            
     except (NotFound, AttributeError) as err:
         # 
         extra_data = {}

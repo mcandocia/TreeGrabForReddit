@@ -447,6 +447,8 @@ class options(object):
                             action='store_true', help='Will shuffle order or loaded subreddits. Good if you do not want the same order each tiem the code is run (can save on memory leaks if you put it in a shell script).')
         parser.add_argument('--user-gildings', dest='user_gildings', action='store_true',
                             help='Will scrape user history for gildings (silver, gold, platinum) if toggled; may take extra time')
+        parser.add_argument('--scrape-gilded', dest='scrape_gilded',
+                            action='store_true', help='Scrapes gilded comment & thread data from gilded posts collected via --user-gildings.')
         args = parser.parse_args()
         print 'parsed arguments'
         #load template if exists
@@ -529,6 +531,7 @@ class options(object):
         self.impose('subreddit_dict_refresh_min_period')
         self.impose('shuffle_subreddits')
         self.impose('user_gildings')
+        self.impose('scrape_gilded')
         self.rank_type = self.rank_type
         for elem in ['nouser','grabauthors','rescrape_threads','rescrape_users',
                      'get_upvote_ratio','deepuser','log', 'drop_old_posts',
@@ -538,7 +541,7 @@ class options(object):
                      'scrape_moderators','scrape_subreddits','scrape_subreddits_in_db',
                      'repeat_subreddit_scraping','use_subreddit_table_for_moderators',
                      'rescrape_subreddits','scrape_related_subreddits','scrape_wikis',
-                     'scrape_traffic', 'user_gildings']:
+                     'scrape_traffic', 'user_gildings', 'scrape_gilded']:
             setattr(self, elem, handle_boolean(self, args, elem))
         self.impose('N')
         self.dictionary_time = datetime.datetime.now()
