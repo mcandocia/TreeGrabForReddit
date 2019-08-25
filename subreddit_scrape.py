@@ -96,10 +96,15 @@ def scrape_subreddit_info(text, opts, scraper, recursion_depth=0):
         write_traffic(data['traffic_data'], opts)
         opts.db.commit()
     if opts.scrape_wikis and data['wiki_data'] is not None:
+        if opts.verbose:
+            print 'getting wiki data'
         write_wikis(data['wiki_data'], opts)
         opts.db.commit()
     #now validate related_subreddits data, which involves recursion
     if opts.scrape_related_subreddits:
+        if opts.verbose:
+            print 'getting related subreddits...'
+
         validate_related_subreddits(data['related_subreddits_data'], opts, scraper,
                                     recursion_depth)
         write_related_subreddits(data['related_subreddits_data'], opts)
