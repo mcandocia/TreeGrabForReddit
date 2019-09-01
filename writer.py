@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import os
 import sys
 
@@ -15,7 +17,7 @@ def write_user(data, opts):
     history_mode = 'users' in opts.history
     db = opts.db
     #check if user in database
-    #print data
+    #print(data)
     try:
         db.execute('SELECT max(timestamp) FROM %s.users WHERE username=%%s' % db.schema,
                    [data['username']])
@@ -26,21 +28,21 @@ def write_user(data, opts):
              ((data['timestamp'] - last_time).seconds*seconds_to_days < \
               opts.user_delay - (data['timestamp'] - last_time).days):
             if opts.verbose:
-                print 'already have %s in database' % data['username']
+                print('already have %s in database' % data['username'])
             return False
         else:
             can_update = True
             if history_mode:
                 if opts.verbose and False:
-                    print 'appending entry...'
+                    print('appending entry...')
                 db.insert_user(data)
             else:
                 if opts.verbose and False:
-                    print 'updating entry...'
+                    print('updating entry...')
                 db.update_user(data)
     except:
-        print sys.exc_info()
-        print data
+        print(sys.exc_info())
+        print(data)
         db.insert_user(data)
     db.commit()
     return True
@@ -58,7 +60,7 @@ def write_thread(data, opts):
             return True
         fails_time = (data['timestamp'] - last_time).seconds*seconds_to_days < opts.thread_delay - \
                      (data['timestamp'] - last_time).days
-        if (opts.thread_delay == -1 or fails_time) and data['scrape_mode'] <> 'thread':
+        if (opts.thread_delay == -1 or fails_time) and data['scrape_mode'] != 'thread':
             return False
         else:
             if history_mode:
@@ -69,8 +71,8 @@ def write_thread(data, opts):
             else:
                 return False
     except:
-        print sys.exc_info()
-        print data
+        print(sys.exc_info())
+        print(data)
         db.insert_thread(data)
     db.commit()
     return True
@@ -81,9 +83,9 @@ def write_comment(data, opts):
         #check if user in database
     try:
         query = 'SELECT max(timestamp) FROM %s.comments WHERE id=%%s' % db.schema
-        #print query
+        #print(query)
         db.execute(query, [data['id']])
-        #print 'executed query'
+        #print('executed query')
         last_time = db.fetchall()[0][0]
         if last_time is None:
             db.insert_comment(data)
@@ -91,31 +93,31 @@ def write_comment(data, opts):
             return True
         meets_time_cutoff = (data['timestamp'] - last_time).seconds*seconds_to_days < \
                             opts.thread_delay - (data['timestamp'] - last_time).days
-        updateable = opts.thread_delay <> -1
+        updateable = opts.thread_delay != -1
         thread_mode = data['scrape_mode'] == 'thread'
         if (not (thread_mode or history_mode)):
             return False
         else:
             if history_mode:
-                #print 'appending entry...'
+                #print('appending entry...')
                 db.insert_comment(data)
             else:
-                #print 'updating...'
+                #print('updating...')
                 db.update_comment(data)
     except TypeError:
-        print data
-        print sys.exc_info()
+        print(data)
+        print(sys.exc_info())
         db.insert_comment(data)
     db.commit()
     return True
 
 def write_subreddit(data, opts):
     history_mode = 'subreddits' in opts.history
-    #print data
+    #print(data)
     db = opts.db
     #subreddit has already passed the validation requirements
     if 'subreddit' not in data:
-        print data
+        print(data)
     last_update = db.get_subreddit_update_time(data['subreddit'])
     if history_mode or last_update==None:
         db.insert_subreddit(data)

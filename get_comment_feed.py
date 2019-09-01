@@ -1,10 +1,16 @@
+from __future__ import print_function
+from six import iteritems
+
 import praw
 import re
 import os
 import time
 import requests
 from requests.exceptions import HTTPError, ConnectionError
-from exceptions import UnicodeDecodeError, IndexError, AttributeError
+try:
+    from exceptions import UnicodeDecodeError, IndexError, AttributeError
+except ImportError:
+    pass
 import calendar
 import datetime
 import sys
@@ -44,9 +50,9 @@ def clean_keyboardinterrupt(f):
         try:
             return f(*args, **kwargs)
         except KeyboardInterrupt:
-            print 'exiting via keyboard interrupt'
+            print('exiting via keyboard interrupt')
             if logging:
-                print 'making log'
+                print('making log')
                 logopts.db.update_log_entry(logopts, 'Keyboard Interrupt')
             sys.exit()
     return func
@@ -56,7 +62,7 @@ def main():
     opts = options()
     counter = 0
     scraper = praw_user.scraper()
-    print 'starting collection...'
+    print('starting collection...')
     while opts.N < 0 or counter < opts.N:
         if counter % 5 == 0:
             sys.stdout.write('.')
@@ -64,13 +70,13 @@ def main():
         try:
             process_subreddit(opts.subreddits[counter % len(opts.subreddits)], opts, scraper)
         except Forbidden:
-            print 'forbidden error...continuing...'
+            print('forbidden error...continuing...')
             continue
         #p = Process(target=process_comments, args=(comments, opts))
         counter += 1
         if counter % 100 == 0:
-            print 'total comments processed: %s' % len(opts.COMMENT_ID_SET)
-    print 'done'
+            print('total comments processed: %s' % len(opts.COMMENT_ID_SET))
+    print('done')
 
 @retry_if_broken_connection
 def process_subreddit(subreddit_text, opts, scraper):
@@ -88,7 +94,7 @@ def process_comments(comments, opts):
             opts.COMMENT_ID_SET.add(comment.id)
         data = get_comment_data(comment, opts)
         data_dict.update(data)
-    for key, value in data_dict.iteritems():
+    for key, value in iteritems(data_dict):
         writer.write_comment(value, opts)
     return True
 
@@ -136,16 +142,16 @@ class options(object):
         parser.add_argument('--verbose','-v',dest='verbose',action='store_true',
                             help="Enabling this will increase the text output during scraping.")
 
-        print 'added arguments'
+        print('added arguments')
         args = parser.parse_args()
-        print 'parsed arguments'
+        print('parsed arguments')
         #load template if exists
         self.args = args
         good_args = [a for a in dir(args) if not re.match('^_.*',a)]
         #DELETE
         if args.verbose:
             for arg in good_args:
-                print arg, getattr(args, arg), type(getattr(args, arg))
+                print(arg, getattr(args, arg), type(getattr(args, arg)))
         #process all other values
         self.name = args.name
         #add to subreddit list
@@ -189,7 +195,7 @@ class options(object):
             self.init_time = datetime.datetime.now()
         #if rescraping is enabled, subreddit scraping will be either
         #of limited N or suppressed (default)
-        print 'intialized database'
+        print('intialized database')
     
     def impose(self, varname, validator=None,popfirst=False):
         val = getattr(self.args,varname)

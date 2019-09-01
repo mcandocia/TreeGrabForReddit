@@ -1,10 +1,20 @@
+from __future__ import print_function
+
+try:
+    unicode
+except:
+    unicode = str 
+
 import praw
 import re
 import os
 import time
 import requests
 from requests.exceptions import HTTPError, ConnectionError
-from exceptions import UnicodeDecodeError, IndexError, AttributeError
+try:
+    from exceptions import UnicodeDecodeError, IndexError, AttributeError
+except ImportError:
+    pass
 import calendar
 import datetime
 import sys
@@ -41,9 +51,9 @@ def clean_keyboardinterrupt(f):
         try:
             return f(*args, **kwargs)
         except KeyboardInterrupt:
-            print 'exiting via keyboard interrupt'
+            print('exiting via keyboard interrupt')
             if logging:
-                print 'making log'
+                print('making log')
                 logopts.db.update_log_entry(logopts, 'Keyboard Interrupt')
             sys.exit()
     return func
@@ -89,9 +99,9 @@ def validate_post(post, opts):
         if opts.thread_delay == -1:
             return False
         age = get_age(update_time)
-        print 'age: %d' % age
+        print('age: %d' % age)
         if age > opts.thread_delay:
-            print 'UPDATING THREAD'
+            print('UPDATING THREAD')
         return age > opts.thread_delay
 
 @retry_if_broken_connection
@@ -110,9 +120,9 @@ def select_post(subreddit_name, post_dict, opts, reddit_scraper, refreshed=False
         if subreddit_name in opts.subreddit_refresh_timer_dict:
             time_remaining = time.time() - opts.subreddit_refresh_timer_dict[subreddit_name] < opts.subreddit_dict_refresh_min_period
             if time_remaining > 0:
-                print 'not enough time has passed to refresh dict (%ss remaining)' % round(time_remaining)
+                print('not enough time has passed to refresh dict (%ss remaining)' % round(time_remaining))
                 return None
-        print 'refreshing dictionary for %s' % subreddit_name
+        print('refreshing dictionary for %s' % subreddit_name)
         post_dict[subreddit_name] = get_subreddit_posts(
             reddit_scraper.subreddit(subreddit_name),
             opts
@@ -121,7 +131,7 @@ def select_post(subreddit_name, post_dict, opts, reddit_scraper, refreshed=False
         
         return select_post(subreddit_name, post_dict, opts, reddit_scraper, refreshed=True)
     else:
-        print 'cannot find valid entries for %s' % subreddit_name
+        print('cannot find valid entries for %s' % subreddit_name)
         return None
 
 @retry_if_broken_connection
@@ -144,9 +154,9 @@ def main(args):
         filter_users(opts)
         opts.old_user_comment_limit = opts.user_comment_limit
         opts.old_user_thread_limit = opts.user_thread_limit
-        if opts.man_user_comment_limit <> None:
+        if opts.man_user_comment_limit != None:
             opts.user_comment_limit = opts.man_user_comment_limit
-        if opts.man_user_thread_limit <> None:
+        if opts.man_user_thread_limit != None:
             opts.user_thread_limit = opts.man_user_thread_limit
     for username in opts.users:
         scrape_user(username, opts, reddit_scraper, force_read=opts.deepuser)
@@ -156,13 +166,13 @@ def main(args):
         opts.user_comment_limit = opts.old_user_comment_limit
         opts.user_thread_limit = opts.old_user_thread_limit
     #parse thread ids
-    print 'pattern:', opts.pattern
+    print('pattern:', opts.pattern)
     for thread_id in opts.ids:
         process_thread(thread_id, opts, reddit_scraper)
     if len(opts.ids) > 0:
-        print 'finished with supplied thread ids'
+        print('finished with supplied thread ids')
     else:
-        print '---------------------------------'
+        print('---------------------------------')
     #go through subreddits
     counter = 0
     n_subreddits = len(opts.subreddits)
@@ -181,13 +191,13 @@ def main(args):
                 old_subreddit_post_dict.pop(subreddit_name)
         thread = select_post(subreddit_name, subreddit_post_dict, opts, reddit_scraper)
         if thread is None:
-            print 'skipping %s due to insufficient posts' % subreddit_name
+            print('skipping %s due to insufficient posts' % subreddit_name)
         else:
             process_thread(thread.id, opts, reddit_scraper)
         if len(subreddit_post_dict[subreddit_name]) == 0:
             subreddit_post_dict.pop(subreddit_name)
         counter += 1
-        print 'finished with %d threads' % counter
+        print('finished with %d threads' % counter)
         #check to see if dict should be refreshed
         if opts.post_refresh_time:
             if opts.post_refresh_time > get_age(opts.dictionary_time, localize=False):
@@ -197,20 +207,20 @@ def main(args):
                 subreddit_post_dict = {}
     #moderator rescraping
     if opts.SCRAPE_ANY_SUBREDDITS:
-        print 'beginning subreddit scraping'
+        print('beginning subreddit scraping')
         scrape_subreddits(opts, reddit_scraper)
     if opts.moderators:
         scrape_moderators(opts, reddit_scraper)
-    if opts.N <> 0 and len(opts.subreddits):
-        print 'done with subreddit searching'
+    if opts.N != 0 and len(opts.subreddits):
+        print('done with subreddit searching')
     if opts.rescrape_threads:
         rescraping.rescrape_threads(reddit_scraper, opts)
-        print 'done rescraping threads'
+        print('done rescraping threads')
     if opts.rescrape_users:
         rescraping.rescrape_users(reddit_scraper, opts)
-        print 'done rescraping users'
+        print('done rescraping users')
         
-    print 'done'
+    print('done')
     if opts.log:
         opts.db.update_log_entry(opts, 'completed')
     return 0
@@ -432,7 +442,7 @@ class options(object):
                             type=int, default=0, help="If specified, will add up to [argument]"\
                             " number of users who appear in comments and threads but not user "\
                             "history. Good for when previous scraping skips user collection.")
-        print 'added arguments'
+        print('added arguments')
         parser.add_argument('--max-comments',dest='max_comments',
                             type=int, default=1e6, help="Will only scrape threads if number of "
                             "comments is less than or equal to this value.")
@@ -450,14 +460,14 @@ class options(object):
         parser.add_argument('--scrape-gilded', dest='scrape_gilded',
                             action='store_true', help='Scrapes gilded comment & thread data from gilded posts collected via --user-gildings.')
         args = parser.parse_args()
-        print 'parsed arguments'
+        print('parsed arguments')
         #load template if exists
         self.args = args
         good_args = [a for a in dir(args) if not re.match('^_.*',a)]
         #DELETE
         if args.verbose:
             for arg in good_args:
-                print arg, getattr(args, arg), type(getattr(args, arg))
+                print(arg, getattr(args, arg), type(getattr(args, arg)))
         if args.constants is not None:
             constants = __import__(args.constants)
             for constant in constants.kwargs:
@@ -563,21 +573,21 @@ class options(object):
             var = raw_input("ARE YOU SURE YOU WANT TO DELETE %s DATA? " % self.name)
             if var.lower() in ['y','yes']:
                 self.db.dropall()
-                print 'deleted database'
+                print('deleted database')
                 sys.exit()
             else:
-                print 'did not delete database'
+                print('did not delete database')
                 sys.exit()
         if args.hard_reset_continue:
             var = raw_input("ARE YOU SURE YOU WANT TO DELETE %s DATA? " % self.name)
             if var.lower() in ['y','yes']:
                 self.db.dropall()
-                print 'deleted database'
+                print('deleted database')
                 del self.db
                 self.db = db.Database(self.name, self.histories)
-                print 'created new database'
+                print('created new database')
             else:
-                print 'did not delete database'
+                print('did not delete database')
                 sys.exit()
         if self.log:
             global logging
@@ -595,7 +605,7 @@ class options(object):
         # used to keep track of how frequently refreshes are made
         self.subreddit_refresh_timer_dict = {}
 
-        print 'intialized database'
+        print('intialized database')
     
     def impose(self, varname, validator=None,popfirst=False):
         val = getattr(self.args,varname)

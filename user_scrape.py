@@ -1,3 +1,6 @@
+from __future__ import print_function
+from six import iteritems
+
 import sys
 import praw_object_data as pod
 import writer
@@ -21,7 +24,7 @@ def scrape_user(username, opts, scraper, force_read=False):
 
         # going to see what happens if I let praw_object_data.py catch this
         user_id = None
-        print 'user %s is not a valid user' % username
+        print('user %s is not a valid user' % username)
         #return 1
     
     previous_time = localize(opts.db.get_user_update_time(user_id))
@@ -31,12 +34,12 @@ def scrape_user(username, opts, scraper, force_read=False):
                seconds)/(3600.*24) > opts.user_delay:
         data = pod.get_user_data(user, opts, mode='user')
     else:
-        print '%s is too recently in database' % username
+        print('%s is too recently in database' % username)
         return 2
     comments = data['commentdata']
     threads = data['threaddata']
     userdata = data['userdata']
-    for key, value in comments.iteritems():
+    for key, value in iteritems(comments):
         writer.write_comment(value, opts)
         if opts.deepuser:
             thread_id = value['thread_id']
@@ -44,8 +47,8 @@ def scrape_user(username, opts, scraper, force_read=False):
                 opts.ids.append(thread_id)
                 opts.deepcounter+=1
             else:
-                print 'check %s\'s comment on comment %s for id issues' % (username, value['text'])
-    for key, value in threads.iteritems():
+                print('check %s\'s comment on comment %s for id issues' % (username, value['text']))
+    for key, value in iteritems(threads):
         writer.write_thread(value, opts)
         if opts.deepuser:
             thread_id = value['id']

@@ -1,3 +1,6 @@
+from __future__ import print_function
+from six import iteritems
+
 from praw_object_data import retry_if_broken_connection, get_user_data
 import pytz
 import datetime
@@ -7,7 +10,7 @@ def scrape_moderators(opts, scraper):
     target_subreddits = get_target_subreddits(opts)
     if opts.use_subreddit_table_for_moderators:
         target_subreddits.extend(get_subreddit_table_subreddits(opts))
-    print 'getting moderators from %s total subreddits' % len(target_subreddits)
+    print('getting moderators from %s total subreddits' % len(target_subreddits))
     opts.master_moderator_set = set()
     for subreddit in target_subreddits:
         scrape_subreddit_for_moderators(subreddit, opts, scraper)
@@ -19,7 +22,7 @@ def get_subreddit_table_subreddits(opts):
 
 def get_target_subreddits(opts):
     db = opts.db
-    print opts.subreddits
+    print(opts.subreddits)
     if not opts.moderators_all:
         if opts.repeat_moderator_subreddits:
             target_subreddits = opts.subreddits
@@ -55,21 +58,21 @@ def get_target_subreddits(opts):
 
 @retry_if_broken_connection
 def scrape_subreddit_for_moderators(subreddit, opts, scraper):
-    print subreddit
+    print(subreddit)
     sub = scraper.subreddit(subreddit)
     try:
         mods = [x for x in sub.moderator()]
     except prawcore.exceptions.Forbidden:
-        print 'Cannot read moderators of subreddit (probably private)'
+        print('Cannot read moderators of subreddit (probably private)')
         return False
     #in case user missed capitalization
     subreddit_proper_name = sub.display_name
-    print '+-----------------------------+'
-    print 'getting moderator data for /r/%s' % subreddit_proper_name
+    print('+-----------------------------+')
+    print('getting moderator data for /r/%s' % subreddit_proper_name)
     current_time = datetime.datetime.now()
     for i, mod in enumerate(mods):
         if opts.verbose:
-            print 'getting data for /u/%s' % str(mod)
+            print('getting data for /u/%s' % str(mod))
         opts.db.execute("""INSERT INTO %s.moderators(subreddit, username, timestamp, pos)
         VALUES (%%s, %%s, %%s, %%s);""" % opts.db.schema, (subreddit_proper_name,
                                                            str(mod),
@@ -78,19 +81,19 @@ def scrape_subreddit_for_moderators(subreddit, opts, scraper):
         )
         if opts.scrape_moderators:
             if opts.verbose:
-                print 'Scraping moderators of /r/%s' % subreddit_proper_name
+                print('Scraping moderators of /r/%s' % subreddit_proper_name)
             if str(mod) in opts.master_moderator_set:
                 continue
             data = get_user_data(mod, opts, 'minimal')
             writer.write_user(data['userdata'], opts)
-            for key, value in data['commentdata'].iteritems():
+            for key, value in iteritems(data['commentdata']):
                 writer.write_comment(value, opts)
-            for key, value in data['threaddata'].iteritems():
+            for key, value in iteritems(data['threaddata']):
                 writer.write_thread(value, opts)
-            #print 'wrote data for %s' % str(mod)
+            #print('wrote data for %s' % str(mod))
             opts.master_moderator_set.add(str(mod))
     opts.db.commit()
-    print 'got moderators for /r/%s' % subreddit_proper_name
+    print('got moderators for /r/%s' % subreddit_proper_name)
     return True
         
         

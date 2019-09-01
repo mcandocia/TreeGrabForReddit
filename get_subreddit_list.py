@@ -1,3 +1,4 @@
+from __future__ import print_function
 import praw_user
 import sys
 import os
@@ -25,7 +26,7 @@ def main(iterations=1, initial=True):
     if initial:
         opts.proper_subreddit_set.update(opts.subreddits)
     if len(opts.subreddits) == 0:
-        print "YOU NEED TO SPECIFY SUBREDDITS TO SEARCH!!!"
+        print("YOU NEED TO SPECIFY SUBREDDITS TO SEARCH!!!")
         return 1
     scraper = praw_user.scraper()
     for subreddit_text in opts.subreddits:
@@ -40,7 +41,7 @@ def main(iterations=1, initial=True):
         validate_subreddits(opts, scraper, initial)
         main(iterations=iterations-1,initial=False)
         return 0
-    print 'done'
+    print('done')
 
 #initial argument is used to allow large subreddits as initial seeds
 def validate_subreddits(opts, scraper, initial):
@@ -50,20 +51,20 @@ def validate_subreddits(opts, scraper, initial):
             continue
         if subreddit_text in opts.exclude_subreddits:
             continue
-        print 'searching /r/%s' % subreddit_text
+        print('searching /r/%s' % subreddit_text)
         try:
             subreddit = scraper.subreddit(subreddit_text)
             num_subscribers = subreddit.subscribers
             proper_name = subreddit.display_name
         except Forbidden:
-            print '%s is restricted' % subreddit_text
+            print('%s is restricted' % subreddit_text)
             continue
         except (NotFound, Redirect):
-            print '%s is not found' % subreddit_text
+            print('%s is not found' % subreddit_text)
             continue
         except BadRequest:
-            print '%s is a bad request' % subreddit_text
-            print sys.exc_info()
+            print('%s is a bad request' % subreddit_text)
+            print(sys.exc_info())
             continue
         if num_subscribers >= opts.min_subscribers and \
            (num_subscribers <= opts.max_subscribers):
@@ -77,20 +78,20 @@ def write_subreddits(opts):
         mode='w'
     with open(opts.outfile, mode) as f:
         for i, text in enumerate(opts.proper_subreddit_set):
-            if i <> 0:
+            if i != 0:
                 f.write('\n')
             f.write(text)
-    print 'saved %d subreddits to %s' % (i+1, opts.outfile)
+    print('saved %d subreddits to %s' % (i+1, opts.outfile))
 
 @retry_if_broken_connection
 def scrape_subreddit(subreddit_text, opts, scraper):
     try:
         subreddit = scraper.subreddit(subreddit_text)
     except Forbidden:
-        print '%s is restricted' % subreddit_text
+        print('%s is restricted' % subreddit_text)
         return 1
     except (Redirect, NotFound):
-        print '%s is not found' % subreddit_text
+        print('%s is not found' % subreddit_text)
     desc = subreddit.description
     description_search = search_for_subreddits(desc)
     opts.searching_subreddits.update([x[0].lower() for x in description_search])
@@ -148,7 +149,7 @@ class listmaker_options(object):
         self.args = args
         good_args = [a for a in dir(args) if not re.match('^_.*',a)]
         for arg in good_args:
-            print arg, getattr(args, arg), type(getattr(args, arg))
+            print(arg, getattr(args, arg), type(getattr(args, arg)))
         if args.subreddits is not None:
             self.subreddits=args.subreddits
         elif not hasattr(self, 'subreddits'):

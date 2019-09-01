@@ -1,3 +1,4 @@
+from __future__ import print_function
 import psycopg2
 from psycopg2.extensions import AsIs
 from dbinfo import *
@@ -32,26 +33,36 @@ class Database(object):
         """returns a copy of itself, but with different connections/cursors"""
         return Database(self.name, self,unique_ids, self.silence)
     
-    def __init__(self, name=default_schema,
-                 unique_ids={'comments':True,'users':True,'threads':True,'subreddits':True},
-                 silence=False):
+    def __init__(
+            self,
+            name=default_schema,
+            unique_ids={'comments':True,'users':True,'threads':True,'subreddits':True},
+
+            silence=False,
+            connect_only=False,
+    ):
         #initialize connection
         self.conn = psycopg2.connect(database=database, user=username, host=host, port=port,
                                      password=password)
         self.cur = self.conn.cursor()
+        if connect_only:
+            self.silence=silence
+            self.unique_ids = unique_ids
+            self.name = None
+            return None
         if not silence:
-            print unique_ids
+            print(unique_ids)
         self.unique_ids = unique_ids#for clone method
         self.schema=name
         self.silence = silence
         if not silence:
-            print 'started connection'
+            print('started connection')
         #make schema and tables
         if not silence:
-            print """CREATE SCHEMA IF NOT EXISTS %s;""" % self.schema
+            print("""CREATE SCHEMA IF NOT EXISTS %s;""" % self.schema)
         self.cur.execute("""CREATE SCHEMA IF NOT EXISTS %s;""" % self.schema)
         if not silence:
-            print 'made schema'
+            print('made schema')
         self.make_log_table()
 
         if unique_ids.get('threads',True):
@@ -134,7 +145,7 @@ class Database(object):
             );""" % self.schema)
 
         if not self.silence:
-            print 'made threads table'
+            print('made threads table')
         if unique_ids.get('users',True):
             #main info
             #username is primary key due to existence of shadowbanned users, who
@@ -189,7 +200,7 @@ class Database(object):
             USING id TABLESPACE %s;""" % 
             (self.schema,'user_id_index',self.schema, tablespace))'''
         if not self.silence:
-            print 'made users table'
+            print('made users table')
 
         if unique_ids.get('comments', True):
             self.cur.execute("""CREATE TABLE IF NOT EXISTS %s.comments(
@@ -246,7 +257,7 @@ class Database(object):
             );""" % self.schema)
         self.make_subreddit_table(unique_ids)
         if not self.silence:
-            print 'made comments table'
+            print('made comments table')
         self.usertable = '%s.users' % self.schema
         self.threadtable = '%s.threads' % self.schema
         self.commenttable = '%s.comments'% self.schema
@@ -256,7 +267,7 @@ class Database(object):
         self.create_wiki_table()
         self.commit()
         if not self.silence:
-            print 'committed initial config'
+            print('committed initial config')
         #create indexes
         #hold off for now 
         
@@ -296,7 +307,7 @@ class Database(object):
 
     def filter_users(self, opts):
         # just get all of the darn data
-        print 'Filtering %d users' % len(opts.users)
+        print('Filtering %d users' % len(opts.users))
         now = pytz.utc.localize(datetime.datetime.now())
         self.execute("SELECT username, timestamp FROM %s.users" % self.schema)
         user_timestamps = {x[0]: pytz.utc.localize(x[1]) for x in self.fetchall()}
@@ -305,7 +316,7 @@ class Database(object):
             if user not in user_timestamps
             or ((now - user_timestamps.get(user, now)).seconds >= 3600*24 * opts.user_delay and opts.user_delay != -1)
         ]
-        print 'Now have %d users remaining after filtering' % len(opts.users)
+        print('Now have %d users remaining after filtering' % len(opts.users))
         return True
         
     def get_thread_update_time(self, thread_id):
@@ -317,8 +328,8 @@ class Database(object):
             #print update_time
             return update_time
         except psycopg2.ProgrammingError:
-            print 'cannot get thread update time...check for bugs'
-            print sys.exc_info()
+            print('cannot get thread update time...check for bugs')
+            print(sys.exc_info())
             return None
 
     def get_subreddit_update_time(self, subreddit_text):
@@ -327,7 +338,7 @@ class Database(object):
                          " lower(subreddit)=lower(%s)",[subreddit_text])
             return self.fetchall()[0][0]
         except:
-            print sys.exc_info()
+            print(sys.exc_info())
             return None
 
     def check_subreddit_update_time(self, subreddit_text, opts):
@@ -470,7 +481,7 @@ class Database(object):
         """WARNING: THIS should only be used for cleaning up during testing"""
         for table in (self.commenttable, self.usertable, self.threadtable):
             self.execute("DROP TABLE %s;" % table)
-            print 'dropped %s' % table
+            print('dropped %s' % table)
         self.execute("DROP INDEX IF EXISTS %s.user_name_index;" % self.schema)
         self.execute("DROP TABLE IF EXISTS %s.log;" % self.schema)
         self.execute("DROP TABLE IF EXISTS %s.subreddits;" % self.schema)
@@ -480,7 +491,7 @@ class Database(object):
         self.execute("DROP TABLE IF EXISTS %s.wikis;" % self.schema)
         if not exclude_schema:
             self.execute("DROP SCHEMA %s;" % self.schema)
-            print 'dropped schema %s' % self.schema
+            print('dropped schema %s' % self.schema)
         self.commit()
 
     def make_subreddit_table(self, unique_ids):
@@ -544,7 +555,7 @@ class Database(object):
                                           data['notes']])
         self.commit()
         if not self.silence:
-            print 'made log entry'
+            print('made log entry')
 
     def update_log_entry(self, opts, reason, notes=None):
         start_time = opts.start_time
@@ -559,7 +570,7 @@ class Database(object):
                     ' WHERE start_time=%s'
         self.execute(statement, update_data + [opts.start_time,] )
         self.commit()
-        print 'updated log'
+        print('updated log')
 
     def create_moderator_table(self):
         #this table does not use primary keys
@@ -595,6 +606,8 @@ class Database(object):
         content TEXT,
         name TEXT,
         timestamp TIMESTAMP)""" % self.schema)
+
+
 
 def make_update_data(cols, values):
     d1 =  ((AsIs(col), val) for col, val in zip(cols, values) if val is not None)

@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 from datetime import datetime, timedelta
 import time
 import sys
@@ -52,12 +54,12 @@ def retry_if_broken_connection(f):
                                 arg.db.update_log_entry(arg, 'Timer')
                             sys.exit()
                 return f(*args, **kwargs)
-            except InternalError, ProgrammingError:
-                print sys.exc_info()
+            except(InternalError, ProgrammingError):
+                print(sys.exc_info())
                 raise
-            except RequestException, ServerError:
-                print sys.exc_info()
-                print 'sleeping...'
+            except(RequestException, ServerError):
+                print(sys.exc_info())
+                print('sleeping...')
                 time.sleep(10)
     return func
 
@@ -76,7 +78,8 @@ def get_user_data(user, opts, mode='thread'):
                 'timestamp':datetime.now(),
                 'verified': user.verified}
         if opts.user_gildings:
-            print('getting gildings')
+            if opts.verbose:
+                print('getting gildings')
             try:
                 gildings = list(user.gilded())
                 comment_gildings = Counter()
@@ -117,8 +120,8 @@ def get_user_data(user, opts, mode='thread'):
                 comments.update(get_comment_data(comment, opts, mode='minimal',
                                                  author_id = data['id']))
         except Forbidden:
-            print user.name
-            print 'forbidden comment history for some reason'
+            print(user.name)
+            print('forbidden comment history for some reason')
 
             
 
@@ -131,8 +134,8 @@ def get_user_data(user, opts, mode='thread'):
             for i, post in enumerate(post_history):
                 threads.update(get_thread_data(post, opts, mode='minimal'))
         except Forbidden:
-            print user.name
-            print 'forbidden post history for some reason'
+            print(user.name)
+            print('forbidden post history for some reason')
 
         if opts.scrape_gilded and opts.user_gildings:
             for i, post in enumerate(gilded_submissions):
@@ -148,12 +151,12 @@ def get_user_data(user, opts, mode='thread'):
         # 
         extra_data = {}
         if isinstance(err, NotFound):
-            print '%s is shadowbanned' % str(user)
+            print('%s is shadowbanned' % str(user))
             extra_data['shadowbanned_by_date'] = datetime.now()
         elif isinstance(err, AttributeError):
             print(err)
             extra_data['suspended_by_date'] = datetime.now()
-            print '%s is suspended' % str(user)
+            print('%s is suspended' % str(user))
             
         comments = {}
         threads = {}
@@ -226,7 +229,7 @@ def get_thread_data(thread, opts, mode='minimal'):
 
 @retry_if_broken_connection
 def get_comment_data(comment, opts, mode='minimal', author_id=None):
-    #print 'getting data for comment id %s' % comment.id
+    #print('getting data for comment id %s' % comment.id)
     #data that requires pre-processing
     try:
         edited = comment.edited
@@ -269,7 +272,7 @@ def get_comment_data(comment, opts, mode='minimal', author_id=None):
                 'timestamp':datetime.now()
                 }
     except NotFound:
-        print 'comment deleted before cacheable (shouldn\'t happen)'
+        print('comment deleted before cacheable (shouldn\'t happen)')
         return {}
     return {comment.id:data}
 
@@ -279,7 +282,7 @@ def get_comment_data(comment, opts, mode='minimal', author_id=None):
 #related_subreddit_recursion_depth
 @retry_if_broken_connection
 def get_subreddit_data(subreddit, opts, recursion_depth=0):
-    print 'attempting to get subreddit data'
+    print('attempting to get subreddit data')
     now = datetime.now()
     try:
         data = {
@@ -298,28 +301,28 @@ def get_subreddit_data(subreddit, opts, recursion_depth=0):
             'timestamp':now
             }
     except NotFound:
-        print sys.exc_info()
-        print 'subreddit data not found'
+        print(sys.exc_info())
+        print('subreddit data not found')
         return {}
     #except ServerError:
-    #print sys.exc_info()
-    #print 'server error!'
+    #print(sys.exc_info())
+    #print('server error!')
     #raise ServerError
     if opts.scrape_related_subreddits:
         if opts.verbose:
-            print 'getting related subreddits'
+            print('getting related subreddits')
         related_subreddits_data = get_related_subreddits(subreddit, opts, now)
     else:
         related_subreddits_data = None
     if opts.scrape_wikis and data['has_wiki']:
         if opts.verbose:
-            print 'getting wiki data'
+            print('getting wiki data')
         wiki_data = get_wiki_data(subreddit, opts, related_subreddits_data, now)
     else:
         wiki_data = None
     if opts.scrape_traffic and data['public_traffic']:
         if opts.verbose:
-            print 'getting traffic data'
+            print('getting traffic data')
         traffic_data = get_traffic_data(subreddit, opts, now)
     else:
         traffic_data = None
@@ -362,19 +365,19 @@ def get_related_subreddits(subreddit, opts, timestamp):
 @retry_if_broken_connection
 def get_wiki_data(subreddit, opts, related_subreddits, timestamp):
     if opts.verbose:
-        print 'loading subreddit wiki'
+        print('loading subreddit wiki')
     wikis = subreddit.wiki
     if opts.verbose:
-        print 'getting content from wikis'
+        print('getting content from wikis')
     wikis = list(wikis)
     if len(wikis) > 120:
-        print 'SKIPPING WIKI BECAUSE LENGTH IS %s' % len(wikis)
+        print('SKIPPING WIKI BECAUSE LENGTH IS %s' % len(wikis))
         return []
     wiki_text_list = [get_content_or_blank(w) for w in wikis]
     wiki_name = [w.name for w in wikis]
     wiki_data = []
     for name, text in zip(wiki_name, wiki_text_list):
-        #print 'on wiki %s' % repr(wiki_name)
+        #print('on wiki %s' % repr(wiki_name))
         if len(text)==0:
             continue
         wiki_data.append({'subreddit':subreddit.display_name,
@@ -383,7 +386,7 @@ def get_wiki_data(subreddit, opts, related_subreddits, timestamp):
                           'timestamp':timestamp})
         if opts.scrape_related_subreddits:
             if opts.verbose:
-                print 'searching for related subreddits'
+                print('searching for related subreddits')
             subreddits = search_for_subreddits(subreddit.description)
             new_data = [{'subreddit':subreddit.display_name,
                          'related_subreddit':sub.lower(),
@@ -396,16 +399,16 @@ def get_wiki_data(subreddit, opts, related_subreddits, timestamp):
 @retry_if_broken_connection
 def get_content_or_blank(wiki):
     if wiki is None:
-        print 'no wiki'
+        print('no wiki')
         return ''
     else:
         try:
             return wiki.content_md
         except TypeError:
-            print 'typeerror encountered in wiki'
+            print('typeerror encountered in wiki')
             return ''
         except Exception as e:
-            print e
+            print(e)
             raise e
             
 

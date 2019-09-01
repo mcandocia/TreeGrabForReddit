@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import praw_object_data as pod
 from writer import write_subreddit
 from writer import write_traffic
@@ -48,7 +50,7 @@ def scrape_subreddits(opts, scraper):
         subreddit_text = subreddit_list[subreddit_counter % n_subreddits]
         if subreddit_text in subreddit_set and not opts.repeat_subreddit_scraping:
             if opts.verbose:
-                print 'skipping /r/%s' % subreddit_text
+                print('skipping /r/%s' % subreddit_text)
             subreddit_list.pop(subreddit_counter % n_subreddits)
             n_subreddits -= 1
             if len(subreddit_list) == 0:
@@ -58,7 +60,7 @@ def scrape_subreddits(opts, scraper):
         try:
             scrape_subreddit_info(subreddit_text, opts, scraper)
         except Forbidden:
-            print '/r/%s is no longer available' % subreddit_text
+            print('/r/%s is no longer available' % subreddit_text)
             subreddit_list.pop(subreddit_counter % n_subreddits)
             n_subreddits -=1
             if len(subreddit_list) == 0:
@@ -67,9 +69,9 @@ def scrape_subreddits(opts, scraper):
         subreddit_counter += 1
         subreddit_set.add(subreddit_text)
         if subreddit_counter % 50 == 0:
-            print 'gone through %s subreddits out of %s' % (subreddit_counter, n_subreddits)
-    print 'went through %s subreddits out of %s' % (subreddit_counter, n_subreddits)
-    print 'done scraping subreddits'
+            print('gone through %s subreddits out of %s' % (subreddit_counter, n_subreddits))
+    print('went through %s subreddits out of %s' % (subreddit_counter, n_subreddits))
+    print('done scraping subreddits')
 
 @pod.retry_if_broken_connection
 def scrape_subreddit_info(text, opts, scraper, recursion_depth=0):
@@ -80,7 +82,7 @@ def scrape_subreddit_info(text, opts, scraper, recursion_depth=0):
         subreddit = scraper.subreddit(text)
     if not opts.db.check_subreddit_update_time(text, opts):
         if opts.verbose:
-            print 'too recently scraped /r/%s' % text
+            print('too recently scraped /r/%s' % text)
         return False
     if opts.verbose:
         sys.stdout.write( 'scraping /r/%s\r' % text)
@@ -88,7 +90,7 @@ def scrape_subreddit_info(text, opts, scraper, recursion_depth=0):
     #if recursion_depth > 1 this should be the case; saves an extra call
     data = pod.get_subreddit_data(subreddit, opts, recursion_depth)
     if 'subreddit' not in data['data']:
-        print '/r/%s not found' % text
+        print('/r/%s not found' % text)
         return False
     write_subreddit(data['data'], opts)
     #now put in traffic data and wiki data
@@ -97,21 +99,21 @@ def scrape_subreddit_info(text, opts, scraper, recursion_depth=0):
         opts.db.commit()
     if opts.scrape_wikis and data['wiki_data'] is not None:
         if opts.verbose:
-            print 'getting wiki data'
+            print('getting wiki data')
         write_wikis(data['wiki_data'], opts)
         opts.db.commit()
     #now validate related_subreddits data, which involves recursion
     if opts.scrape_related_subreddits:
         if opts.verbose:
-            print 'getting related subreddits...'
+            print('getting related subreddits...')
 
         validate_related_subreddits(data['related_subreddits_data'], opts, scraper,
                                     recursion_depth)
         write_related_subreddits(data['related_subreddits_data'], opts)
-        print 'wrote related data'
+        print('wrote related data')
         opts.db.commit()
     if opts.verbose:
-        print 'done with /r/%s' % text
+        print('done with /r/%s' % text)
 
 #remember:
 #subreddit
@@ -127,7 +129,7 @@ def validate_related_subreddits(data, opts, scraper, recursion_depth):
     while i < len(data):
         entry = data[i]
         results = validate_subreddit(entry, opts, scraper)
-        #print results
+        #print(results)
         #process results to determine whether to remove or update set
         if results is None:
             data.pop(i)
