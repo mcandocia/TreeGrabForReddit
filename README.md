@@ -22,6 +22,8 @@ The basic command format is
 python scraper.py SCHEMA_NAME --ids id1 id2 id3...
 ```
 
+As of August 31, 2019, you can run the code with either Python 2 or Python 3.
+
 I also have another script, **get_comment_feed.py**, that allows you to get the top comments from any subreddit, including /r/all. The only downside is that they are new, so their final score/edits have yet to appear. The format for this command is
 
 ```bash
@@ -33,10 +35,11 @@ You can use `--help` if you want more details, but not all of the functions/feat
 # Requirements
 
 1. PostgreSQL (anything >=9.4 will work)
-2. Python >= 2.7.6 (must be 2.x.x)
-   * psycopg2 (install after PostgreSQL)
+2. Python >= 2.7.6 or Python >= 3.5.X (may work on earlier versions, but untested)
+   * psycopg2 (install after PostgreSQL) OR pyscopg2-binary (used in same way, but will not need to be built from source in future)
    * praw
    * pytz
+   * six (new)
 3. A Reddit account with API permissions. You will need to make your own project page (most likely GitHub). See <https://www.reddit.com/wiki/api> .
 
 
