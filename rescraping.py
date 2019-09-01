@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import datetime
 import pytz
 import re
@@ -86,7 +88,7 @@ def rescrape_users(scraper, opts):
                          construct_delay_part_of_query(opts, opts.user_delay),
                          construct_subreddit_part_of_user_query(opts)]) +
              ' ORDER BY random();') % opts.db.schema)
-    print query
+    print(query)
     opts.db.execute(query)
     user_list = opts.db.fetchmany(1000)
     while len(user_list) > 0:
@@ -97,7 +99,7 @@ def rescrape_users(scraper, opts):
             break
         user_list = opts.db.fetchmany(1000)
         
-    print 'done rescraping users'
+    print('done rescraping users')
     
 
 def rescrape_threads(scraper, opts):
@@ -110,7 +112,7 @@ def rescrape_threads(scraper, opts):
                              construct_min_comments_part_of_query(opts),
                              construct_max_comments_part_of_query(opts)]) +
                  ' ORDER BY random();') % opts.db.schema
-        print query
+        print(query)
         opts.db.execute(query)
     else:
         query = ('SELECT id FROM (SELECT DISTINCT id FROM (SELECT id FROM %s.threads' +
@@ -125,7 +127,7 @@ def rescrape_threads(scraper, opts):
                              construct_subreddit_part_of_thread_query(opts),
                              construct_scrape_mode_part_of_query(opts)]) + '' + 
                  ') t2) t3  ORDER BY random();') % (opts.db.schema, opts.db.schema)
-        print query
+        print(query)
         opts.db.execute(query)
     thread_list = opts.db.fetchmany(1000)
     while len(thread_list) > 0:
@@ -135,4 +137,4 @@ def rescrape_threads(scraper, opts):
         if len(thread_list) < 1000:
             break
         thread_list = opts.db.fetchmany(1000)
-    print 'done rescraping threads'
+    print('done rescraping threads')
