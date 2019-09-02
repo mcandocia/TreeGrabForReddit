@@ -118,7 +118,7 @@ def select_post(subreddit_name, post_dict, opts, reddit_scraper, refreshed=False
             valid_posts.append(post)
     if not refreshed:
         if subreddit_name in opts.subreddit_refresh_timer_dict:
-            time_remaining = time.time() - opts.subreddit_refresh_timer_dict[subreddit_name] < opts.subreddit_dict_refresh_min_period
+            time_remaining = time.time() - opts.subreddit_refresh_timer_dict[subreddit_name] + opts.subreddit_dict_refresh_min_period
             if time_remaining > 0:
                 print('not enough time has passed to refresh dict (%ss remaining)' % round(time_remaining))
                 return None
