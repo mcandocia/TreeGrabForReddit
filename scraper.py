@@ -71,7 +71,7 @@ def clean_keyboardinterrupt(f):
 
 
 
-def get_age(timestamp, localize=True):
+def get_xage(timestamp, localize=True):
     if localize:
         
         timestamp = pytz.utc.localize(timestamp)
@@ -472,6 +472,7 @@ class options(object):
                             help='Will scrape user history for gildings (silver, gold, platinum) if toggled; may take extra time')
         parser.add_argument('--scrape-gilded', dest='scrape_gilded',
                             action='store_true', help='Scrapes gilded comment & thread data from gilded posts collected via --user-gildings.')
+        parser.add_argument('--max-wiki-size', default=120, help='Maximum size of wiki to scrape. If a wiki has more than this many pages, it will be skipped')
         args = parser.parse_args()
         print('parsed arguments')
         #load template if exists
@@ -531,6 +532,7 @@ class options(object):
         if not hasattr(self,'history'):
             self.history = args.history
         #simple arguments
+        # yes, I know this is a bad way of doing it; I'll probably get around to refactoring it at some point.
         self.impose('age')
         self.impose('mincomments')
         self.impose('max_comments')
@@ -555,6 +557,7 @@ class options(object):
         self.impose('shuffle_subreddits')
         self.impose('user_gildings')
         self.impose('scrape_gilded')
+        self.impose('max_wiki_size')
         self.rank_type = self.rank_type
         for elem in ['nouser','grabauthors','rescrape_threads','rescrape_users',
                      'get_upvote_ratio','deepuser','log', 'drop_old_posts',
