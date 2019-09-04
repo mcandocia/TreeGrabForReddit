@@ -20,11 +20,15 @@ from praw.models.reddit.subreddit import Subreddit
 
 import json
 from functools import wraps
+import time
 
 import pytz
 
 def ts_to_utc(timestamp):
-    return datetime.utcfromtimestamp(timestamp.timestamp())
+    try:
+        return datetime.utcfromtimestamp(timestamp.timestamp())
+    except AttributeError:
+        return datetime.utcfromtimestamp(time.mktime(timestamp.timetuple()) + timestamp.microsecond/1e6)
 
 def search_for_subreddits(text):
     return [x[0] for x in re.findall(r'/r/([\w\-]+)(?=([^\w\-]|$))',text)]
@@ -36,7 +40,7 @@ def localize(obj):
         return pytz.utc.localize(obj)
 
 def check_time(init_time, time_delta):
-    if datetime.datetime.now() > init_time + timedelta(hours = time_delta):
+    if datetime.now() > init_time + timedelta(hours = time_delta):
         return True
     return False
 
@@ -70,6 +74,7 @@ def retry_if_broken_connection(f):
                 print(sys.exc_info())
                 print('sleeping...')
                 time.sleep(10)
+
     return func
 
 @retry_if_broken_connection
@@ -339,19 +344,19 @@ def get_subreddit_data(subreddit, opts, recursion_depth=0):
     if opts.scrape_related_subreddits:
         if opts.verbose:
             print('getting related subreddits')
-        related_subreddits_data = get_related_subreddits(subreddit, opts, now)
+        related_subreddits_data = get_related_subreddits(subreddit, opts, timestamp)
     else:
         related_subreddits_data = None
     if opts.scrape_wikis and data['has_wiki']:
         if opts.verbose:
             print('getting wiki data')
-        wiki_data = get_wiki_data(subreddit, opts, related_subreddits_data, now)
+        wiki_data = get_wiki_data(subreddit, opts, related_subreddits_data, timestamp)
     else:
         wiki_data = None
     if opts.scrape_traffic and data['public_traffic']:
         if opts.verbose:
             print('getting traffic data')
-        traffic_data = get_traffic_data(subreddit, opts, now)
+        traffic_data = get_traffic_data(subreddit, opts, timestamp)
     else:
         traffic_data = None
     return {'data':data,
@@ -401,7 +406,7 @@ def get_wiki_data(subreddit, opts, related_subreddits, timestamp):
     if opts.verbose:
         print('getting content from wikis')
     wikis = list(wikis)
-    if len(wikis) > 120:
+    if len(wikis) > opts.max_wiki_size:
         print('SKIPPING WIKI BECAUSE LENGTH IS %s' % len(wikis))
         return []
     wiki_text_list = [get_content_or_blank(w) for w in wikis]
