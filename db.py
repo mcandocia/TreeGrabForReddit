@@ -687,18 +687,19 @@ class Database(object):
 
         ]:
             table_name = "%s.%s" % (self.schema, table)
-            try:
-                self.execute(
-                    'ALTER TABLE  {table_name} ADD COLUMN  {colname} INTEGER'.format(
-                        colname=colname,
-                        table_name=table_name
+            for colname in cols:
+                try:
+                    self.execute(
+                        'ALTER TABLE  {table_name} ADD COLUMN  {colname} INTEGER'.format(
+                            colname=colname,
+                            table_name=table_name
+                        )
                     )
-                )
-                self.commit()
-            except Exception as e:
-                self.rollback()
-                if verbose:
-                    print(e)
+                    self.commit()
+                except Exception as e:
+                    self.rollback()
+                    if verbose:
+                        print(e)
 
         try:
             self.execute('ALTER TABLE  {schema}.users ADD COLUMN  visible_gilded BOOLEAN'.format(

@@ -87,6 +87,10 @@ def scrape_subreddit_info(text, opts, scraper, recursion_depth=0):
     if opts.verbose:
         sys.stdout.write( 'scraping /r/%s\r' % text)
         sys.stdout.flush()
+    if text.lower() in opts.scraped_subreddits:
+        if opts.verbose:
+            print('Already scraped /r/%s' % text)
+        return False
     #if recursion_depth > 1 this should be the case; saves an extra call
     data = pod.get_subreddit_data(subreddit, opts, recursion_depth)
     if 'subreddit' not in data['data']:

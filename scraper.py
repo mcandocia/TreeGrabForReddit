@@ -628,6 +628,8 @@ class options(object):
         # used to keep track of how frequently refreshes are made
         self.subreddit_refresh_timer_dict = {}
 
+        self.scraped_subreddits = set()
+
         print('intialized database')
     
     def impose(self, varname, validator=None,popfirst=False):
