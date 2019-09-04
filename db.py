@@ -592,7 +592,7 @@ class Database(object):
         if not self.silence:
             print('made log entry')
 
-    def update_log_entry(self, opts, reason, notes=None):
+    def update_log_entry(self, opts, reason, notes=None, silent=False):
         start_time = opts.start_time
         data={'end_time':datetime.datetime.now(pytz.utc),
               'stop_reason':reason,
@@ -605,7 +605,8 @@ class Database(object):
                     ' WHERE start_time=%s'
         self.execute(statement, update_data + [opts.start_time,] )
         self.commit()
-        print('updated log')
+        if not silent:
+            print('updated log')
 
     def create_moderator_table(self):
         #this table does not use primary keys
@@ -657,8 +658,9 @@ class Database(object):
                 ('users', ['account_created','shadowbanned_by_date','suspended_by_date']),
                 ('wikis', []),
                 ('moderators', []),
-                ('subreddits', []),
+                ('subreddits', ['created',]),
                 ('traffic', ['time']),
+                ('related_subreddits', [])
         ]:
             for col in cols + ['timestamp']:
                 table_name = "%s.%s" % (self.schema, table)
