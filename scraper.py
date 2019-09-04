@@ -71,7 +71,7 @@ def clean_keyboardinterrupt(f):
 
 
 
-def get_xage(timestamp, localize=True):
+def get_age(timestamp, localize=True):
     if localize:
         
         timestamp = pytz.utc.localize(timestamp)
