@@ -43,6 +43,13 @@ from tzlocal import get_localzone
 
 import db
 
+# helps with redirected output
+from signal import signal, SIGPIPE, SIG_DFL
+signal(SIGPIPE,SIG_DFL) 
+
+# if a command such as "python scraper.py ... | tee -a mylog" is used
+# the exception is handled slightly differently, as a different error is raised
+
 LOCAL_TIMEZONE = get_localzone()
 
 #used for keyboard interrupt logging
@@ -59,6 +66,7 @@ def clean_keyboardinterrupt(f):
                 print('making log')
                 logopts.db.update_log_entry(logopts, 'Keyboard Interrupt')
             sys.exit()
+
     return func
 
 
