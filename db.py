@@ -45,6 +45,7 @@ class Database(object):
         self.conn = psycopg2.connect(database=database, user=username, host=host, port=port,
                                      password=password)
         self.cur = self.conn.cursor()
+        
         if connect_only:
             self.silence=silence
             self.unique_ids = unique_ids
@@ -72,11 +73,13 @@ class Database(object):
             subreddit VARCHAR(30),
             subreddit_id VARCHAR(9),
             created TIMESTAMP,
+            created_utc TIMESTAMP,
             score INT,
             percentage FLOAT,
             author_name VARCHAR(30),
             author_id VARCHAR(8),
             edited TIMESTAMP,
+            edited_utc TIMESTAMP,
             author_flair TEXT,
             author_flair_css_class TEXT,
             link_flair_text TEXT,
@@ -100,7 +103,8 @@ class Database(object):
             domain TEXT,
             in_contest_mode BOOLEAN,
             scrape_mode VARCHAR(10),--'thread|list|profile|minimal'
-            timestamp TIMESTAMP
+            timestamp TIMESTAMP,
+            timestamp_utc TIMESTAMP
             );""" % self.schema)
             '''self.execute("""CREATE INDEX IF NOT EXISTS %s.%s ON %s.threads 
                 USING id TABLESPACE %s;""" % (self.schema,'thread_id_index',
@@ -113,11 +117,13 @@ class Database(object):
             subreddit VARCHAR(30),
             subreddit_id VARCHAR(9),
             created TIMESTAMP,
+            created_utc TIMESTAMP,
             score INT,
             percentage FLOAT,
             author_name VARCHAR(30),
             author_id VARCHAR(8),
             edited TIMESTAMP,
+            edited_utc TIMESTAMP,
             author_flair TEXT,
             author_flair_css_class TEXT,
             link_flair_text TEXT,
@@ -141,7 +147,8 @@ class Database(object):
             in_contest_mode BOOLEAN,
             domain TEXT,
             scrape_mode VARCHAR(10),--'thread|list|profile|minimal'
-            timestamp TIMESTAMP
+            timestamp TIMESTAMP,
+            timestamp_utc TIMESTAMP
             );""" % self.schema)
 
         if not self.silence:
@@ -158,9 +165,12 @@ class Database(object):
             post_karma INT,
             is_mod BOOLEAN,
             account_created TIMESTAMP,
+            account_created_utc TIMESTAMP,
             is_gold BOOLEAN,
             shadowbanned_by_date TIMESTAMP,
             suspended_by_date TIMESTAMP,
+            shadowbanned_by_date_utc TIMESTAMP,
+            suspended_by_date_utc TIMESTAMP,
             deleted_by_date TIMESTAMP,
             submissions_silver INT,
             submissions_gold INT,
@@ -170,7 +180,8 @@ class Database(object):
             comments_platinum INT,
             verified BOOLEAN,
             gilded_visible BOOLEAN,
-            timestamp TIMESTAMP
+            timestamp TIMESTAMP,
+            timestamp_utc TIMESTAMP
             );""" % self.schema)
             
         else:
@@ -182,9 +193,12 @@ class Database(object):
             post_karma INT,
             is_mod BOOLEAN,
             account_created TIMESTAMP,
+            account_created_utc TIMESTAMP,
             is_gold BOOLEAN,
             shadowbanned_by_date TIMESTAMP,
             suspended_by_date TIMESTAMP,
+            shadowbanned_by_date_utc TIMESTAMP,
+            suspended_by_date_utc TIMESTAMP,
             deleted_by_date TIMESTAMP,
             submissions_silver INT,
             submissions_gold INT,
@@ -194,7 +208,8 @@ class Database(object):
             comments_platinum INT,
             verified BOOLEAN,
             gilded_visible BOOLEAN,
-            timestamp TIMESTAMP
+            timestamp TIMESTAMP,
+            timestamp_utc TIMESTAMP
             );""" % self.schema)
             '''self.execute("""CREATE INDEX IF NOT EXISTS %s.%s ON %s.users 
             USING id TABLESPACE %s;""" % 
@@ -211,6 +226,7 @@ class Database(object):
             is_root BOOLEAN,
             text TEXT,
             created TIMESTAMP,
+            created_utc TIMESTAMP,
             edited TIMESTAMP,
             gold INT,
             silver INT DEFAULT 0,
@@ -225,7 +241,8 @@ class Database(object):
             nreplies INT,
             thread_begin_timestamp TIMESTAMP,
             scrape_mode VARCHAR(10),--'sub|minimal'
-            timestamp TIMESTAMP
+            timestamp TIMESTAMP,
+            timestamp_utc TIMESTAMP
             );""" % self.schema)
             '''self.execute("""CREATE INDEX IF NOT EXISTS %s.%s ON %s.comments 
             USING id TABLESPACE %s;""" % (self.schema,'comment_id_index'
@@ -239,6 +256,7 @@ class Database(object):
             is_root BOOLEAN,
             text TEXT,
             created TIMESTAMP,
+            created_utc TIMESTAMP,
             edited TIMESTAMP,
             gold INT,
             silver INT DEFAULT 0,
@@ -253,7 +271,8 @@ class Database(object):
             nreplies INT,
             thread_begin_timestamp TIMESTAMP,
             scrape_mode VARCHAR(10),--'sub|minimal'
-            timestamp TIMESTAMP
+            timestamp TIMESTAMP,
+            timestamp_utc TIMESTAMP
             );""" % self.schema)
         self.make_subreddit_table(unique_ids)
         if not self.silence:
@@ -273,6 +292,14 @@ class Database(object):
         
     def execute(self,*args,**kwargs):
         return self.cur.execute(*args, **kwargs)
+
+    # this would have been easier to implement from the start
+    def __getattr__(self, name):
+        try:
+            return getattr(self.cur, name)
+        except AttributeError:
+            return getattr(self.conn, name)
+            
 
     def insert_user(self, data):
         cols = data.keys()
@@ -467,6 +494,10 @@ class Database(object):
     def commit(self):
         self.conn.commit()
         return True
+
+    def close(self):
+        self.conn.close()
+        return 0
     
     def fetchall(self):
         return self.cur.fetchall()
@@ -500,6 +531,7 @@ class Database(object):
             subreddit VARCHAR(30) PRIMARY KEY,
             accounts_active INTEGER,
             created TIMESTAMP,
+            created_utc TIMESTAMP,
             description TEXT,
             has_wiki BOOLEAN,
             public_traffic BOOLEAN,
@@ -509,13 +541,15 @@ class Database(object):
             subreddit_type VARCHAR(16),
             subscribers INTEGER,
             title TEXT,
-            timestamp TIMESTAMP
+            timestamp TIMESTAMP,
+            timestamp_utc TIMESTAMP
             ); """ % self.schema)
         else:
             self.execute("""CREATE TABLE IF NOT EXISTS %s.subreddits(
             subreddit VARCHAR(30),
             accounts_active INTEGER,
             created TIMESTAMP,
+            created_utc TIMESTAMP,
             description TEXT,
             has_wiki BOOLEAN,
             public_traffic BOOLEAN,
@@ -525,7 +559,8 @@ class Database(object):
             subreddit_type VARCHAR(16),
             subscribers INTEGER,
             title TEXT,
-            timestamp TIMESTAMP
+            timestamp TIMESTAMP,
+            timestamp_utc TIMESTAMP
             ); """ % self.schema)
 
     def make_log_table(self):
@@ -578,6 +613,7 @@ class Database(object):
                      """(subreddit VARCHAR(30),
                      username VARCHAR(30),
                      timestamp TIMESTAMP,
+                     timestamp_utc TIMESTAMP,
                      pos INTEGER)""")
         
     def create_traffic_table(self):
@@ -585,9 +621,11 @@ class Database(object):
         subreddit VARCHAR(30),
         period_type VARCHAR(4),
         time TIMESTAMP,
+        time_utc TIMESTAMP,
         total_visits INTEGER,
         unique_visits INTEGER,
         timestamp TIMESTAMP,
+        timestamp_utc TIMESTAMP,
         PRIMARY KEY (subreddit, period_type, time))
         """ % self.schema)
 
@@ -598,14 +636,146 @@ class Database(object):
         relationship_type VARCHAR(8),
         wiki_name TEXT,
         related_is_private BOOLEAN,
-        timestamp TIMESTAMP)""" % self.schema)
+        timestamp TIMESTAMP,
+        timestamp_utc TIMESTAMP)""" % self.schema)
 
     def create_wiki_table(self):
         self.execute("""CREATE TABLE IF NOT EXISTS %s.wikis(
         subreddit VARCHAR(30),
         content TEXT,
         name TEXT,
-        timestamp TIMESTAMP)""" % self.schema)
+        timestamp TIMESTAMP,
+        timestamp_utc TIMESTAMP)""" % self.schema)
+
+    def add_utc_columns_to_existing_tables(self, verbose=False):
+        # this function is just a table-alterer so that users with older tables don't have to go in and manually adjust them
+        print('ensuring tables have utc columns')
+
+        for table, cols in [
+                ('comments', ['created','edited']),
+                ('threads', ['created','edited']),
+                ('users', ['account_created','shadowbanned_by_date','suspended_by_date']),
+                ('wikis', []),
+                ('moderators', []),
+                ('subreddits', []),
+                ('traffic', ['time']),
+        ]:
+            for col in cols + ['timestamp']:
+                table_name = "%s.%s" % (self.schema, table)
+                try:
+                    colname = '%s_utc' % col
+                    self.execute(
+                        'ALTER TABLE  {table_name} ADD COLUMN  {colname} TIMESTAMP'.format(
+                            colname=colname,
+                            table_name=table_name
+                        )
+                    )
+                    self.commit()
+                except Exception as e:
+                    self.rollback()
+                    if verbose:
+                        print(e)
+
+    def add_gilded_columns_to_existing_tables(self, verbose=False):
+        for table, cols in [
+                ('comments', ['silver','gold','platinum']),
+                ('threads', ['silver','gold','platinum']),
+                ('users', ['comments_silver','comments_gold','comments_platinum', 'submissions_silver','submissions_gold','submissions_platinum']),
+                
+
+        ]:
+            table_name = "%s.%s" % (self.schema, table)
+            try:
+                self.execute(
+                    'ALTER TABLE  {table_name} ADD COLUMN  {colname} INTEGER'.format(
+                        colname=colname,
+                        table_name=table_name
+                    )
+                )
+                self.commit()
+            except Exception as e:
+                self.rollback()
+                if verbose:
+                    print(e)
+
+        try:
+            self.execute('ALTER TABLE  {schema}.users ADD COLUMN  visible_gilded BOOLEAN'.format(
+                schema=self.schema
+            )
+            )
+            self.commit()
+        except Exception as e:
+            self.rollback()
+            if verbose:
+                print(e)
+                    
+
+    # extra function that can be used to optimize queries summarizing data with subreddits and users
+    def build_username_subreddit_domain_indexes(self, schema=None, commit=False, verbose=False):
+        if schema is None:
+            schema = self.schema
+
+        index_queries = [
+            'CREATE INDEX IF NOT EXISTS {schema}_{table}_{cols}_idx ON {schema}.{table}({comma_cols})'.format(
+                schema=schema,
+                table=table,
+                cols='_'.join(cols),
+                comma_cols=','.join(cols)
+            )
+            for table, cols in
+            [
+                # comments
+                ('comments',['subreddit']),
+                ('comments',['author_name']),
+                ('comments',['author_name','subreddit']),
+                
+                # threads
+                ('threads',['subreddit']),
+                ('threads',['author_name']),
+                ('threads',['author_name', 'subreddit']),
+
+                # domains
+                ('threads', ['domain']),
+                ('threads', ['author_name','domain']),
+            ]
+        ]
+
+        for query in index_queries:
+            if verbose:
+                print(query)
+            self.execute(query)
+
+        if commit:
+            print('Committing!')
+            self.commit()
+
+        print('Built indices!')
+
+        return True
+
+        
+# helpful function to create queries for indexes with uniform naming convention
+def standardized_index_query(
+        table_name,
+        columns,
+        schema=None
+):
+    if isinstance(columns, str):
+        columns = [columns]
+        
+    if schema is not None:
+        table_name = '%s.%s' % (schema, table_name)
+
+    index_name = "{table_name}_{cols}_idx".format(table_name=table_name, cols='_'.join(columns))
+
+    index_query = "CREATE INDEX IF NOT EXISTS {index_name} ON {table_name}({cols})".format(
+        index_name=index_name,
+        table_name=table_name,
+        cols=','.join(columns)
+    )
+
+    return index_query
+    
 
 
 

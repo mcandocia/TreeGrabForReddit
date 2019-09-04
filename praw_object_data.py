@@ -13,6 +13,7 @@ from prawcore.exceptions import Redirect
 from prawcore.exceptions import BadRequest
 from prawcore.exceptions import ServerError
 
+
 from praw.models.reddit.submission import Submission
 from praw.models.reddit.comment import Comment
 from praw.models.reddit.subreddit import Subreddit
@@ -21,6 +22,9 @@ import json
 from functools import wraps
 
 import pytz
+
+def ts_to_utc(timestamp):
+    return datetime.utcfromtimestamp(timestamp.timestamp())
 
 def search_for_subreddits(text):
     return [x[0] for x in re.findall(r'/r/([\w\-]+)(?=([^\w\-]|$))',text)]
@@ -48,15 +52,20 @@ def retry_if_broken_connection(f):
                     if isinstance(arg, (Submission, Comment)):
                         continue
                     #will only ever apply to options class
-                    if hasattr(arg, 'init_time'):
-                        if check_time(arg.init_time, arg.timer):
-                            if arg.log:
-                                arg.db.update_log_entry(arg, 'Timer')
-                            sys.exit()
+                    try:
+                        if hasattr(arg, 'init_time'):
+                            if check_time(arg.init_time, arg.timer):
+                                if arg.log:
+                                    arg.db.update_log_entry(arg, 'Timer')
+                                sys.exit()
+                    except NotFound:
+                        print('Encountered NotFound error when extracting attributes. This will be handled later.')
+                        continue
+                        
                 return f(*args, **kwargs)
-            except(InternalError, ProgrammingError):
+            except(InternalError, ProgrammingError) as e:
                 print(sys.exc_info())
-                raise
+                raise e
             except(RequestException, ServerError):
                 print(sys.exc_info())
                 print('sleeping...')
@@ -68,14 +77,18 @@ def get_user_data(user, opts, mode='thread'):
     gilded_comments = []
     gilded_submissions = []
     try:
+        timestamp = datetime.now()
         data = {'username':user.name,
                 'id':user.id,
                 'comment_karma':user.comment_karma,
                 'post_karma':user.link_karma,
                 'is_mod':user.is_mod,
+                # yeah, the naming convention doesn't make sense to me, either
                 'account_created':datetime.fromtimestamp(user.created_utc),
+                'account_created_utc':datetime.utcfromtimestamp(user.created_utc),                
                 'is_gold':user.is_gold,
-                'timestamp':datetime.now(),
+                'timestamp':timestamp,
+                'timestamp_utc': ts_to_utc(timestamp),
                 'verified': user.verified}
         if opts.user_gildings:
             if opts.verbose:
@@ -160,14 +173,16 @@ def get_user_data(user, opts, mode='thread'):
             
         comments = {}
         threads = {}
+        timestamp = datetime.now()
         data = {'username':user.name,
                 'id':None,
                 'comment_karma':None,
                 'post_karma':None,
                 'is_mod':None,
                 'account_created':None,
+                'account_created_utc': None,
                 'is_gold':None,
-                'timestamp':datetime.now()}
+                'timestamp':timestamp, 'timestamp_utc': ts_to_utc(timestamp)}
         data.update(extra_data)
     return {'userdata':data,
             'commentdata':comments,
@@ -179,8 +194,10 @@ def get_thread_data(thread, opts, mode='minimal'):
     edited = thread.edited
     if not edited:
         edited = None
+        edited_utc = None
     else:
         edited = datetime.fromtimestamp(edited)
+        edited_utc = ts_to_utc(edited)
     #too expensive to gather this
     subreddit_id = None
     author_id = None
@@ -192,12 +209,16 @@ def get_thread_data(thread, opts, mode='minimal'):
         author_name = None
     else:
         author_name = thread.author.name
+
+    timestamp = datetime.now()
     data = {'id':thread.id,
             'title':thread.title,
             'subreddit':thread.subreddit.display_name,
             'subreddit_id':subreddit_id,
             'created':datetime.fromtimestamp(thread.created_utc),
+            'created_utc':datetime.utcfromtimestamp(thread.created_utc),            
             'edited':edited,
+            'edited_utc': edited_utc,
             'score':thread.score,
             'percentage':ratio,
             'author_name':author_name,
@@ -223,7 +244,8 @@ def get_thread_data(thread, opts, mode='minimal'):
             'comments_navigated':None,
             'comments_deleted':None,
             'scrape_mode':mode,
-            'timestamp':datetime.now()
+            'timestamp':timestamp,
+            'timestamp_utc': ts_to_utc(timestamp),
             }
     return {thread.id:data}
 
@@ -235,8 +257,10 @@ def get_comment_data(comment, opts, mode='minimal', author_id=None):
         edited = comment.edited
         if not edited:
             edited = None
+            edited_utc = None
         else:
             edited = datetime.fromtimestamp(edited)
+            edited_utc = ts_to_utc(edited)
         #main processing
         #for deleted comments
         author = comment.author
@@ -255,7 +279,9 @@ def get_comment_data(comment, opts, mode='minimal', author_id=None):
                 'is_root':comment.is_root,
                 'text':comment.body,
                 'created':datetime.fromtimestamp(comment.created_utc),
+                'created_utc':datetime.utcfromtimestamp(comment.created_utc),
                 'edited':edited,
+                'edited_utc': edited_utc,
                 'gold':comment.gilded,
                 'silver': comment.gildings.get('gid_1', 0),
                 'platinum': comment.gildings.get('gid_3', 0),
@@ -283,12 +309,13 @@ def get_comment_data(comment, opts, mode='minimal', author_id=None):
 @retry_if_broken_connection
 def get_subreddit_data(subreddit, opts, recursion_depth=0):
     print('attempting to get subreddit data')
-    now = datetime.now()
+    timestamp = datetime.now()
     try:
         data = {
             'subreddit':subreddit.display_name,
             'accounts_active':subreddit.accounts_active,
             'created':datetime.fromtimestamp(subreddit.created_utc),
+            'created_utc':datetime.utcfromtimestamp(subreddit.created_utc),
             'description':subreddit.description,
             'has_wiki':subreddit.wiki_enabled,
             'public_traffic':subreddit.public_traffic,
@@ -298,7 +325,8 @@ def get_subreddit_data(subreddit, opts, recursion_depth=0):
             'subreddit_type':subreddit.subreddit_type,
             'subscribers':subreddit.subscribers,
             'title':subreddit.title,
-            'timestamp':now
+            'timestamp':timestamp,
+            'timestamp_utc': ts_to_utc(timestamp),
             }
     except NotFound:
         print(sys.exc_info())
@@ -342,13 +370,15 @@ def get_traffic_data(subreddit, opts, timestamp):
                     'subreddit':subreddit.display_name,
                     'unique_visits':x[1],
                     'total_visits':x[2],
-                    'timestamp':timestamp} for x in day_data]
+                    'timestamp':timestamp,
+                    'timestamp_utc': ts_to_utc(timestamp)} for x in day_data]
     hour_traffic = [{'time':datetime.fromtimestamp(x[0]),
                     'period_type':'hour',
                     'subreddit':subreddit.display_name,
                     'unique_visits':x[1],
                     'total_visits':x[2],
-                     'timestamp':timestamp} for x in hour_data]
+                     'timestamp':timestamp,
+                     'timestamp_utc': ts_to_utc(timestamp)} for x in hour_data]
 
     return day_traffic + hour_traffic
 
@@ -360,7 +390,8 @@ def get_related_subreddits(subreddit, opts, timestamp):
     return [{'subreddit':subreddit.display_name,
              'related_subreddit':sub.lower(),
              'relationship_type':'sidebar',
-             'timestamp':timestamp} for sub in subreddits]
+             'timestamp':timestamp,
+             'timestamp_utc': ts_to_utc(timestamp)} for sub in subreddits]
 
 @retry_if_broken_connection
 def get_wiki_data(subreddit, opts, related_subreddits, timestamp):
@@ -383,7 +414,8 @@ def get_wiki_data(subreddit, opts, related_subreddits, timestamp):
         wiki_data.append({'subreddit':subreddit.display_name,
                           'content':text,
                           'name':name,
-                          'timestamp':timestamp})
+                          'timestamp':timestamp,
+                          'timestamp_utc': ts_to_utc(timestamp)})
         if opts.scrape_related_subreddits:
             if opts.verbose:
                 print('searching for related subreddits')
@@ -392,7 +424,8 @@ def get_wiki_data(subreddit, opts, related_subreddits, timestamp):
                          'related_subreddit':sub.lower(),
                          'relationship_type':'wiki',
                          'wiki_name':name,
-                         'timestamp':timestamp} for sub in subreddits]
+                         'timestamp':timestamp,
+                         'timestamp_utc': ts_to_utc(timestamp)} for sub in subreddits]
             related_subreddits.extend(new_data)
         return wiki_data
             

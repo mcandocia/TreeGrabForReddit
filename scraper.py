@@ -39,8 +39,11 @@ from praw_object_data import retry_if_broken_connection
 from get_unscraped_ids import get_unscraped_ids
 
 import pytz
+from tzlocal import get_localzone
 
 import db
+
+LOCAL_TIMEZONE = get_localzone()
 
 #used for keyboard interrupt logging
 logging = False
@@ -59,15 +62,17 @@ def clean_keyboardinterrupt(f):
     return func
 
 
+
 def get_age(timestamp, localize=True):
     if localize:
+        
         timestamp = pytz.utc.localize(timestamp)
-        now = datetime.datetime.now(pytz.utc)
+        now = datetime.datetime.now(LOCAL_TIMEZONE)
     else:
         now = datetime.datetime.now()
-    difference = (now - timestamp).seconds
-    day_difference = (now - timestamp).days
-    days = float(difference) / 3600. / 24. + day_difference
+    difference = (now - timestamp).total_seconds()
+    #day_difference = (now - timestamp).days
+    days = float(difference) / 3600. / 24.# + day_difference
     return days
 
 @retry_if_broken_connection
@@ -85,7 +90,7 @@ def validate_post(post, opts):
     if opts.age:
         thread_time = datetime.datetime.fromtimestamp(post.created_utc)
         if thread_time is not None:
-            thread_age = get_age(thread_time)
+            thread_age = get_age(thread_time, localize=False)
             if thread_age < opts.age[0] or thread_age > opts.age[1]:
                 return False
             
@@ -567,6 +572,13 @@ class options(object):
             self.history = []
         self.histories = {txt:txt not in self.history for txt in ['threads','comments','users']}
         self.db = db.Database(self.name, self.histories)
+
+        # sort of auto-migration
+        # postgres 10 has IF EXISTS and IF NOT EXISTS for ALTER TABLE, but I'm assuming not everyone uses
+        # that version
+        self.db.add_utc_columns_to_existing_tables(verbose=args.verbose)
+        self.db.add_gilded_columns_to_existing_tables(verbose=args.verbose)
+
         if self.n_unscraped_users_to_scrape > 0:
             self.users.extend(get_unscraped_ids(self.db, self.n_unscraped_users_to_scrape))
         if args.hard_reset_quit:
