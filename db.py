@@ -377,8 +377,12 @@ class Database(object):
         else:
             now = datetime.datetime.now(pytz.utc)
             update_time = pytz.utc.localize(update_time)
-            if (now - update_time).seconds < 3600*24 * opts.subreddit_delay - \
-               (now-update_time).days:
+            diff1 = (now - update_time).seconds
+            diff2 = 3600*24 * (opts.subreddit_delay - (now-update_time).days)
+            if opts.verbose and diff1 < diff2:
+                
+                print('%s seconds remaining' % round(diff2 - diff1))
+            if diff1 < diff2:
                 return False
             return True
 
