@@ -23,6 +23,7 @@ import socket
 from socket import AF_INET, SOCK_DGRAM
 from argparse import ArgumentParser
 from prawcore.exceptions import NotFound
+import importlib
 
 import rescraping
 
@@ -34,8 +35,11 @@ from user_scrape import scrape_user
 from thread_process import process_thread
 from moderator_scrape import scrape_moderators
 from subreddit_scrape import scrape_subreddits
+from new_users import get_new_users
 
 from praw_object_data import retry_if_broken_connection
+from rescrape_from_schema import rescrape_users_from_schema
+
 from get_unscraped_ids import get_unscraped_ids
 
 import pytz
@@ -163,7 +167,14 @@ def main(args):
     opts = options()
     reddit_scraper = scraper()
     #parse users
+    if opts.resample_users_from_schema:
+        original_schema = opts.resample_users_from_schema
+        print('Rescraping from %s.users' % original_schema)
+        rescrape_users_from_schema(original_schema, opts, reddit_scraper)
+        print('Done')
+        exit(0)
     if len(opts.users) > 0:
+        print('Filtering users')
         filter_users(opts)
         opts.old_user_comment_limit = opts.user_comment_limit
         opts.old_user_thread_limit = opts.user_thread_limit
@@ -171,23 +182,53 @@ def main(args):
             opts.user_comment_limit = opts.man_user_comment_limit
         if opts.man_user_thread_limit != None:
             opts.user_thread_limit = opts.man_user_thread_limit
+    if opts.shuffle_usernames:
+        print('Shuffling users')
+        random.shuffle(opts.users)
     for username in opts.users:
         scrape_user(username, opts, reddit_scraper, force_read=opts.deepuser)
     if len(opts.users) > 0 and opts.deepuser:
+        random.shuffle(opts.ids)
+    elif opts.unordered and len(opts.ids) > 1:
         random.shuffle(opts.ids)
     if len(opts.users) > 0:
         opts.user_comment_limit = opts.old_user_comment_limit
         opts.user_thread_limit = opts.old_user_thread_limit
     #parse thread ids
     print('pattern:', opts.pattern)
-    for thread_id in opts.ids:
+
+    for i, thread_id in enumerate(opts.ids):
         process_thread(thread_id, opts, reddit_scraper)
+        if opts.N != -1 and i>= opts.N:
+            break
     if len(opts.ids) > 0:
+        counter = i+1
         print('finished with supplied thread ids')
     else:
         print('---------------------------------')
+        counter = 0
+
+    if opts.new_user_scrape_mode:
+        print('Entering new user scrape mode. Beginning counter.')
+        new_user_set = set()
+        while opts.N == -1 or counter < opts.N:
+            counter+=1
+            new_users = get_new_users(reddit_scraper, new_user_set)
+            if len(new_users) == 0:
+                print('No new users found. Sleeping for 30 seconds.')
+                counter-=1
+                time.sleep(30)
+            else:
+                for username in new_users:
+                    scrape_user(
+                        username,
+                        opts,
+                        reddit_scraper,
+                        force_read=False
+                    )
+        print('Exited new user loop')
+            
     #go through subreddits
-    counter = 0
     n_subreddits = len(opts.subreddits)
     subreddit_post_dict = {}
     old_subreddit_post_dict = {}
@@ -468,11 +509,38 @@ class options(object):
         )
         parser.add_argument('--shuffle-subreddits', dest='shuffle_subreddits',
                             action='store_true', help='Will shuffle order or loaded subreddits. Good if you do not want the same order each tiem the code is run (can save on memory leaks if you put it in a shell script).')
+        parser.add_argument('--shuffle-usernames', dest='shuffle_usernames',
+                            action='store_true', help='Shuffles usernames after loading')
         parser.add_argument('--user-gildings', dest='user_gildings', action='store_true',
                             help='Will scrape user history for gildings (silver, gold, platinum) if toggled; may take extra time')
         parser.add_argument('--scrape-gilded', dest='scrape_gilded',
                             action='store_true', help='Scrapes gilded comment & thread data from gilded posts collected via --user-gildings.')
         parser.add_argument('--max-wiki-size', default=120, help='Maximum size of wiki to scrape. If a wiki has more than this many pages, it will be skipped')
+
+        parser.add_argument('--alt-scraper-file', required=False, nargs=2, help='If specified, this is a path to a python file followed by a function name that can be used instead of the default praw_user and scraper functions. Useful for extending scripts.', default=None
+        )
+
+        parser.add_argument(
+            '--new-user-scrape-mode', action='store_true',
+            help='Collect new user names and then scrape them after exhausting ID list'
+        )
+
+        parser.add_argument(
+            '--resample-users-from-schema',
+            help='Resamples users from given schema',
+            default=None,
+            required=False
+        )
+
+        parser.add_argument(
+            '--resampling-age-range',
+            help='Age range in days for resampled data',
+            default=[0, 3e4],
+            type=int,
+            nargs=2
+        )
+            
+                            
         args = parser.parse_args()
         print('parsed arguments')
         #load template if exists
@@ -534,6 +602,8 @@ class options(object):
         #simple arguments
         # yes, I know this is a bad way of doing it; I'll probably get around to refactoring it at some point.
         self.impose('age')
+        self.impose('resample_users_from_schema')
+        self.impose('resampling_age_range')
         self.impose('mincomments')
         self.impose('max_comments')
         self.impose('history')
@@ -555,9 +625,12 @@ class options(object):
         self.impose('n_unscraped_users_to_scrape')
         self.impose('subreddit_dict_refresh_min_period')
         self.impose('shuffle_subreddits')
+        self.impose('shuffle_usernames')
         self.impose('user_gildings')
         self.impose('scrape_gilded')
         self.impose('max_wiki_size')
+        self.impose('alt_scraper_file')
+        self.impose('new_user_scrape_mode')
         self.rank_type = self.rank_type
         for elem in ['nouser','grabauthors','rescrape_threads','rescrape_users',
                      'get_upvote_ratio','deepuser','log', 'drop_old_posts',
@@ -630,6 +703,16 @@ class options(object):
 
         self.scraped_subreddits = set()
 
+        if self.alt_scraper_file is not None:
+            print('ALT SCRAPER FILE')
+            print(self.alt_scraper_file)
+            global scraper
+
+            module = importlib.import_module(self.alt_scraper_file[0])
+
+            scraper = getattr(module, self.alt_scraper_file[1])
+            print('Loaded %s function as %s to act as scraper' % tuple(self.alt_scraper_file[::-1]))
+
         print('intialized database')
     
     def impose(self, varname, validator=None,popfirst=False):
@@ -650,17 +733,13 @@ def handle_boolean(obj, args, varname):
     else:
         return getattr(args,varname)
 
-def extract_lines(filename):
+def extract_lines(filename, limit=30):
     """reads lines of text file and returns the content of each line as an element of a list"""
     file=open(filename,'r')
-    objs=[]
-    while True:
-        nextobj=re.sub('[\n\r]','',file.readline())
-        if nextobj=='':
-            break
-        else:
-            objs+=[nextobj]
-    return(objs)
+
+    data = [x.strip() for x in file.readlines() if x.strip() != '' and len(x) <= limit]
+    file.close()
+    return data
             
 
 
