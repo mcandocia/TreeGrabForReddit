@@ -8,7 +8,7 @@ from user_scrape import scrape_user
 def rescrape_users_from_schema(schema, opts, reddit_scraper):
     db = opts.db
     db.execute(
-        "SELECT username, timestamp FROM {schema}.users WHERE username NOT IN (SELECT username FROM {name}.users) ORDER BY timestamp".format(
+        "SELECT username, timestamp FROM {schema}.users t1 WHERE NOT EXISTS (SELECT username FROM {name}.users t2 WHERE t1.username=t2.username) ORDER BY timestamp".format(
             schema=schema,
             name=opts.name,
         )
