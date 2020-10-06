@@ -1,11 +1,21 @@
 from __future__ import print_function
 import psycopg2
 from psycopg2.extensions import AsIs
+try:
+    from psycopg2.extras import execute_values
+except:
+    print('Cannot use execute_values function for psycopg2 cursor')
+    
 from dbinfo import *
 import sys
 import itertools
 import datetime
 import pytz
+
+try:
+    import regex as re
+except ImportError:
+    import re
 
 default_schema="default"
 
@@ -40,11 +50,32 @@ class Database(object):
 
             silence=False,
             connect_only=False,
+            cursor_name = None,
+            check_index_mode=None,
     ):
         #initialize connection
+        # note: if cursor_name is defined, using this class will be more memory-efficient
+        # when retrieving large amounts of data
+
+        # connect_only will not initialize the schema/tables in them; it behaves mostly like a regular cursor,
+        # with some extra functionality
+        # check_index_mode checkes create index queries for schemas in index name and replaces dots with underscores
+
         self.conn = psycopg2.connect(database=database, user=username, host=host, port=port,
                                      password=password)
-        self.cur = self.conn.cursor()
+
+        if cursor_name is None:
+            self.cur = self.conn.cursor()
+        else:
+            self.cur = self.conn.cursor(cursor_name)
+            self.cur_i = 0
+
+        if check_index_mode is None:
+            self.check_index_mode = connect_only
+        else:
+            self.check_index_mode = check_index_mode
+
+        self.cursor_name = cursor_name
         
         if connect_only:
             self.silence=silence
@@ -70,13 +101,13 @@ class Database(object):
             self.cur.execute("""CREATE TABLE IF NOT EXISTS %s.threads(
             id CHAR(7) PRIMARY KEY,
             title TEXT,
-            subreddit VARCHAR(30),
+            subreddit VARCHAR(40),
             subreddit_id VARCHAR(9),
             created TIMESTAMP,
             created_utc TIMESTAMP,
             score INT,
             percentage FLOAT,
-            author_name VARCHAR(30),
+            author_name VARCHAR(40),
             author_id VARCHAR(8),
             edited TIMESTAMP,
             edited_utc TIMESTAMP,
@@ -114,13 +145,13 @@ class Database(object):
             self.cur.execute("""CREATE TABLE IF NOT EXISTS %s.threads(
             id CHAR(7),
             title TEXT,
-            subreddit VARCHAR(30),
+            subreddit VARCHAR(40),
             subreddit_id VARCHAR(9),
             created TIMESTAMP,
             created_utc TIMESTAMP,
             score INT,
             percentage FLOAT,
-            author_name VARCHAR(30),
+            author_name VARCHAR(40),
             author_id VARCHAR(8),
             edited TIMESTAMP,
             edited_utc TIMESTAMP,
@@ -159,7 +190,7 @@ class Database(object):
             #are only identified by name and have no other record other than comments
             #manually encountered
             self.cur.execute("""CREATE TABLE IF NOT EXISTS %s.users(
-            username VARCHAR(30) PRIMARY KEY,
+            username VARCHAR(40) PRIMARY KEY,
             id VARCHAR(8),
             comment_karma INT,
             post_karma INT,
@@ -187,7 +218,7 @@ class Database(object):
         else:
 
             self.cur.execute("""CREATE TABLE IF NOT EXISTS %s.users(
-            username VARCHAR(30),
+            username VARCHAR(40),
             id VARCHAR(8),
             comment_karma INT,
             post_karma INT,
@@ -220,7 +251,7 @@ class Database(object):
         if unique_ids.get('comments', True):
             self.cur.execute("""CREATE TABLE IF NOT EXISTS %s.comments(
             id VARCHAR(8) PRIMARY KEY,
-            author_name VARCHAR(30),
+            author_name VARCHAR(40),
             author_id VARCHAR(8),
             parent_id VARCHAR(11),
             is_root BOOLEAN,
@@ -228,6 +259,7 @@ class Database(object):
             created TIMESTAMP,
             created_utc TIMESTAMP,
             edited TIMESTAMP,
+            edited_utc TIMESTAMP,
             gold INT,
             silver INT DEFAULT 0,
             platinum INT DEFAULT 0,
@@ -235,7 +267,7 @@ class Database(object):
             score INT,
             is_distinguished BOOLEAN,
             thread_id VARCHAR(8),
-            subreddit VARCHAR(30),
+            subreddit VARCHAR(40),
             subreddit_id VARCHAR(9),
             absolute_position INTEGER[],
             nreplies INT,
@@ -250,7 +282,7 @@ class Database(object):
         else:
             self.cur.execute("""CREATE TABLE IF NOT EXISTS %s.comments(
             id VARCHAR(8),
-            author_name VARCHAR(30),
+            author_name VARCHAR(40),
             author_id VARCHAR(8),
             parent_id VARCHAR(11),
             is_root BOOLEAN,
@@ -258,6 +290,7 @@ class Database(object):
             created TIMESTAMP,
             created_utc TIMESTAMP,
             edited TIMESTAMP,
+            edited_utc TIMESTAMP,
             gold INT,
             silver INT DEFAULT 0,
             platinum INT DEFAULT 0,
@@ -265,7 +298,7 @@ class Database(object):
             score INT,
             is_distinguished BOOLEAN,
             thread_id VARCHAR(8),
-            subreddit VARCHAR(30),
+            subreddit VARCHAR(40),
             subreddit_id VARCHAR(9),
             absolute_position INTEGER[],
             nreplies INT,
@@ -288,10 +321,46 @@ class Database(object):
         if not self.silence:
             print('committed initial config')
         #create indexes
-        #hold off for now 
+        #hold off for now
+
+    # use this to set/reset cursor name
+    # may be useful for very large queries
+    def set_cursor_name(self, name):
+        if not self.silence:
+            print('setting cursor name to %s' % name)
+        self.cur = self.conn.cursor(name)
+        self.cursor_name = name
+        self.cur_i = 0
+        return 0
+
+    # use this to unset cursor name
+    def unset_cursor_name(self):
+        if not self.silence:
+            print('unsetting cursor name')
+        self.cur = self.conn.cursor()
+        self.cursor_name = None
+        return 0
         
     def execute(self,*args,**kwargs):
-        return self.cur.execute(*args, **kwargs)
+        if self.check_index_mode:
+            # fix syntax error with schema name if it exists
+            args = list(args)
+            args[0] = re.sub(
+                r'CREATE +INDEX +(IF +NOT +EXISTS\s+)?([A-Za-z_0-9]+)\.([A-Za-z_0-9]+)',
+                r'CREATE INDEX \1 \2_\3',
+                args[0]
+            )
+            args = tuple(args)
+        if self.cursor_name is None:
+            return self.cur.execute(*args, **kwargs)
+        else:
+            #self.cur.close()
+            self.cur_i = (self.cur_i + 1) % 100000
+            self.cur = self.conn.cursor('%s_%s' % (self.cursor_name, self.cur_i))
+            return self.cur.execute(*args, **kwargs)
+
+    def execute_values(self, *args, **kwargs):
+        return execute_values(self.cur, *args, **kwargs)
 
     # this would have been easier to implement from the start
     def __getattr__(self, name):
@@ -532,7 +601,7 @@ class Database(object):
     def make_subreddit_table(self, unique_ids):
         if unique_ids.get('subreddits',True):
             self.execute("""CREATE TABLE IF NOT EXISTS %s.subreddits(
-            subreddit VARCHAR(30) PRIMARY KEY,
+            subreddit VARCHAR(40) PRIMARY KEY,
             accounts_active INTEGER,
             created TIMESTAMP,
             created_utc TIMESTAMP,
@@ -550,7 +619,7 @@ class Database(object):
             ); """ % self.schema)
         else:
             self.execute("""CREATE TABLE IF NOT EXISTS %s.subreddits(
-            subreddit VARCHAR(30),
+            subreddit VARCHAR(40),
             accounts_active INTEGER,
             created TIMESTAMP,
             created_utc TIMESTAMP,
@@ -615,15 +684,15 @@ class Database(object):
     def create_moderator_table(self):
         #this table does not use primary keys
         self.execute(("""CREATE TABLE IF NOT EXISTS %s.moderators""" % self.schema) +
-                     """(subreddit VARCHAR(30),
-                     username VARCHAR(30),
+                     """(subreddit VARCHAR(40),
+                     username VARCHAR(40),
                      timestamp TIMESTAMP,
                      timestamp_utc TIMESTAMP,
                      pos INTEGER)""")
         
     def create_traffic_table(self):
         self.execute("""CREATE TABLE IF NOT EXISTS %s.traffic(
-        subreddit VARCHAR(30),
+        subreddit VARCHAR(40),
         period_type VARCHAR(4),
         time TIMESTAMP,
         time_utc TIMESTAMP,
@@ -636,8 +705,8 @@ class Database(object):
 
     def create_related_subreddits_table(self):
         self.execute("""CREATE TABLE IF NOT EXISTS %s.related_subreddits(
-        subreddit VARCHAR(30),
-        related_subreddit VARCHAR(30),
+        subreddit VARCHAR(40),
+        related_subreddit VARCHAR(40),
         relationship_type VARCHAR(8),
         wiki_name TEXT,
         related_is_private BOOLEAN,
@@ -646,7 +715,7 @@ class Database(object):
 
     def create_wiki_table(self):
         self.execute("""CREATE TABLE IF NOT EXISTS %s.wikis(
-        subreddit VARCHAR(30),
+        subreddit VARCHAR(40),
         content TEXT,
         name TEXT,
         timestamp TIMESTAMP,
@@ -771,9 +840,12 @@ def standardized_index_query(
         columns = [columns]
         
     if schema is not None:
+        safe_table_name = '%s_%s' % (schema, table_name)        
         table_name = '%s.%s' % (schema, table_name)
+    else:
+        safe_table_name = table_name
 
-    index_name = "{table_name}_{cols}_idx".format(table_name=table_name, cols='_'.join(columns))
+    index_name = "{table_name}_{cols}_idx".format(table_name=safe_table_name, cols='_'.join(columns))
 
     index_query = "CREATE INDEX IF NOT EXISTS {index_name} ON {table_name}({cols})".format(
         index_name=index_name,
