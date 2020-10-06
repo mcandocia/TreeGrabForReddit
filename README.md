@@ -40,7 +40,17 @@ You can use `--help` if you want more details, but not all of the functions/feat
    * praw
    * pytz
    * six (new)
+   * regex (optional; only used for some scripts and will default to re if unavailable)
 3. A Reddit account with API permissions. You will need to make your own project page (most likely GitHub). See <https://www.reddit.com/wiki/api> .
+
+## Optional requirements
+
+There are some optional requirements if you want to use some of the extra scripts provided in the `scripts/` directory:
+
+ * sklearn
+ * numpy version >= 1.15.0 
+ * pandas
+ * xgboost
 
 
 # General Guidelines

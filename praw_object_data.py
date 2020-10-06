@@ -187,7 +187,8 @@ def get_user_data(user, opts, mode='thread'):
                 'account_created':None,
                 'account_created_utc': None,
                 'is_gold':None,
-                'timestamp':timestamp, 'timestamp_utc': ts_to_utc(timestamp)}
+                'timestamp':timestamp,
+                'timestamp_utc': ts_to_utc(timestamp)}
         data.update(extra_data)
     return {'userdata':data,
             'commentdata':comments,
@@ -276,13 +277,18 @@ def get_comment_data(comment, opts, mode='minimal', author_id=None):
             author_id = author_id # author.id slows down the code gathering too much; join later
             author_name = author.name
         #too costly to grab this
+        # somehow null bytes can find their way into reddit comments
+        def remove_null(x):
+            return x.replace(chr(0), ' <NULL_CHARACTER_REPLACEMENT> ')
+        now = datetime.now()
+                             
         subreddit_id = None
         data = {'id':comment.id,
                 'author_name':author_name,
                 'author_id':author_id,
                 'parent_id':comment.parent_id,
                 'is_root':comment.is_root,
-                'text':comment.body,
+                'text':remove_null(comment.body),
                 'created':datetime.fromtimestamp(comment.created_utc),
                 'created_utc':datetime.utcfromtimestamp(comment.created_utc),
                 'edited':edited,
@@ -300,7 +306,8 @@ def get_comment_data(comment, opts, mode='minimal', author_id=None):
                 'nreplies':None,
                 'thread_begin_timestamp':None,
                 'scrape_mode':mode,
-                'timestamp':datetime.now()
+                'timestamp':now,
+                'timestamp_utc': ts_to_utc(now)
                 }
     except NotFound:
         print('comment deleted before cacheable (shouldn\'t happen)')
@@ -341,6 +348,11 @@ def get_subreddit_data(subreddit, opts, recursion_depth=0):
     #print(sys.exc_info())
     #print('server error!')
     #raise ServerError
+    try:
+        opts.scraped_subreddits.add(subreddit.display_name.lower())
+    except Exception as e:
+        print(e)
+        return {}
     if opts.scrape_related_subreddits:
         if opts.verbose:
             print('getting related subreddits')
