@@ -594,6 +594,9 @@ class options(object):
         elif hasattr(self, 'f_users'):
             for fn in self.f_users:
                 self.users += extract_lines(fn)
+
+        # workaround in case you need to pass a name that starts with a hyphen via somethign like ' --someusername--xx--xx'
+        self.users = [x.strip() for x in self.users]
         #unordered option
         self.unordered = handle_boolean(self, args, 'unordered')
         #history
@@ -660,13 +663,14 @@ class options(object):
         # sort of auto-migration
         # postgres 10 has IF EXISTS and IF NOT EXISTS for ALTER TABLE, but I'm assuming not everyone uses
         # that version
-        self.db.add_utc_columns_to_existing_tables(verbose=args.verbose)
-        self.db.add_gilded_columns_to_existing_tables(verbose=args.verbose)
+        if True:
+            self.db.add_utc_columns_to_existing_tables(verbose=args.verbose)
+            self.db.add_gilded_columns_to_existing_tables(verbose=args.verbose)
 
         if self.n_unscraped_users_to_scrape > 0:
             self.users.extend(get_unscraped_ids(self.db, self.n_unscraped_users_to_scrape))
         if args.hard_reset_quit:
-            var = raw_input("ARE YOU SURE YOU WANT TO DELETE %s DATA? " % self.name)
+            var = input("ARE YOU SURE YOU WANT TO DELETE %s DATA? " % self.name)
             if var.lower() in ['y','yes']:
                 self.db.dropall()
                 print('deleted database')
@@ -675,7 +679,7 @@ class options(object):
                 print('did not delete database')
                 sys.exit()
         if args.hard_reset_continue:
-            var = raw_input("ARE YOU SURE YOU WANT TO DELETE %s DATA? " % self.name)
+            var = input("ARE YOU SURE YOU WANT TO DELETE %s DATA? " % self.name)
             if var.lower() in ['y','yes']:
                 self.db.dropall()
                 print('deleted database')
