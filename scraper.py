@@ -77,11 +77,9 @@ def clean_keyboardinterrupt(f):
 
 def get_age(timestamp, localize=True):
     if localize:
-        
-        timestamp = pytz.utc.localize(timestamp)
-        now = datetime.datetime.now(LOCAL_TIMEZONE)
-    else:
         now = datetime.datetime.now()
+    else:
+        now = datetime.datetime.utcnow()
     difference = (now - timestamp).total_seconds()
     #day_difference = (now - timestamp).days
     days = float(difference) / 3600. / 24.# + day_difference
@@ -138,6 +136,9 @@ def select_post(subreddit_name, post_dict, opts, reddit_scraper, refreshed=False
             time_remaining = time.time() - opts.subreddit_refresh_timer_dict[subreddit_name] + opts.subreddit_dict_refresh_min_period
             if time_remaining > 0:
                 print('not enough time has passed to refresh dict (%ss remaining)' % round(time_remaining))
+                if opts.terminate_after_sub_dict_unusable:
+                    print('Exiting...')
+                    exit(0)
                 return None
         print('refreshing dictionary for %s' % subreddit_name)
         post_dict[subreddit_name] = get_subreddit_posts(
@@ -255,7 +256,7 @@ def main(args):
         #check to see if dict should be refreshed
         if opts.post_refresh_time:
             if opts.post_refresh_time > get_age(opts.dictionary_time, localize=False):
-                opts.dictionary_time = datetime.datetime.now()
+                opts.dictionary_time = datetime.datetime.utcnow()
                 if not opts.drop_old_posts:
                     old_subreddit_post_dict = subreddit_post_dict
                 subreddit_post_dict = {}
@@ -539,6 +540,12 @@ class options(object):
             type=int,
             nargs=2
         )
+
+        parser.add_argument(
+            '--terminate-after-sub-dict-unusable',
+            action='store_true',
+            help='Stop script if cannot get any more entries from a subreddit'
+        )
             
                             
         args = parser.parse_args()
@@ -634,6 +641,7 @@ class options(object):
         self.impose('max_wiki_size')
         self.impose('alt_scraper_file')
         self.impose('new_user_scrape_mode')
+        self.impose('terminate_after_sub_dict_unusable')
         self.rank_type = self.rank_type
         for elem in ['nouser','grabauthors','rescrape_threads','rescrape_users',
                      'get_upvote_ratio','deepuser','log', 'drop_old_posts',
@@ -646,7 +654,7 @@ class options(object):
                      'scrape_traffic', 'user_gildings', 'scrape_gilded']:
             setattr(self, elem, handle_boolean(self, args, elem))
         self.impose('N')
-        self.dictionary_time = datetime.datetime.now()
+        self.dictionary_time = datetime.datetime.utcnow()
         self.SCRAPE_ANY_SUBREDDITS = self.scrape_subreddits_in_db or self.scrape_subreddits \
                                      or self.rescrape_subreddits
         #this is used to avoid navigating through the same subreddit twice if rescraping
