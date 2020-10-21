@@ -98,9 +98,10 @@ def validate_post(post, opts):
             return False
     #check if age is correct if exists
     if opts.age:
-        thread_time = datetime.datetime.fromtimestamp(post.created_utc)
+        thread_time = datetime.datetime.utcfromtimestamp(post.created_utc)
         if thread_time is not None:
             thread_age = get_age(thread_time, localize=False)
+            #print(thread_age)
             if thread_age < opts.age[0] or thread_age > opts.age[1]:
                 return False
             

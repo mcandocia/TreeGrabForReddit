@@ -25,7 +25,7 @@ def process_thread(thread_id, opts, reddit_scraper):
                                                   unicode(thread.subreddit.display_name)))
         except (UnicodeDecodeError, UnicodeEncodeError):
                 print('PROCESSING id=%s; name cannot be parsed' % thread.id)
-        print('created %s' % datetime.datetime.fromtimestamp(thread.created).strftime('%x %X'))
+        print('created %s' % datetime.datetime.fromtimestamp(thread.created_utc).strftime('%x %X'))
         print('author: %s' % str(thread.author))
         print('score: %d, num_comments: %d' % (thread.score, thread.num_comments))
         print('')
