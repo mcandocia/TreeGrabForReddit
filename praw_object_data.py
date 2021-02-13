@@ -18,6 +18,8 @@ from praw.models.reddit.submission import Submission
 from praw.models.reddit.comment import Comment
 from praw.models.reddit.subreddit import Subreddit
 
+from award_process import process_award_data
+
 import json
 from functools import wraps
 import time
@@ -32,6 +34,14 @@ def ts_to_utc(timestamp):
 
 def search_for_subreddits(text):
     return [x[0] for x in re.findall(r'/r/([\w\-]+)(?=([^\w\-]|$))',text)]
+
+def trophy_ts_process(ts, utc=False):
+    if ts is None:
+        return None
+    if utc:
+        return datetime.utcfromtimestamp(ts)
+    else:
+        return datetime.fromtimestamp(ts)
 
 def localize(obj):
     if obj is None:
@@ -81,6 +91,9 @@ def retry_if_broken_connection(f):
 def get_user_data(user, opts, mode='thread'):
     gilded_comments = []
     gilded_submissions = []
+    thread_awards = {}
+    comment_awards = {}
+    trophy_data = []
     try:
         timestamp = datetime.now()
         data = {'username':user.name,
@@ -130,27 +143,73 @@ def get_user_data(user, opts, mode='thread'):
                 gilding_data = {'gilded_visible': False}
 
             data.update(gilding_data)
+
+        if opts.trophies:
+            try:
+                user_trophies = user.trophies()
+                
+                trophy_data.extend([
+                    [
+                        t.name,
+                        user.name,
+                        trophy_ts_process(t.granted_at),
+                        trophy_ts_process(t.granted_at, utc=True)
+
+                    ]
+                    for t in user_trophies
+                ]
+                )
+                data['_trophies'] = trophy_data
+
+            except Exception as e:
+                print('Could not get trophies for user %s' % user.name)
+
+        if opts.awards:
+            # not able to do anything at this point in time
+            if opts.verbose:
+                print('Skipping user-awards until API feature implemented')
+
         #get comment history
         comment_history = user.comments.new(limit=opts.user_comment_limit)
         comments = {}
+
         try:
             for i, comment in enumerate(comment_history):
                 comments.update(get_comment_data(comment, opts, mode='minimal',
                                                  author_id = data['id']))
+                if opts.awards and False:
+                    award_data = comment.all_awardings
+                    processed_award_data = process_award_data(award_data, key={'comment_id': str(comment.id)})
+                    simple_award_data = processed_award_data['simple_data']
+                    complete_award_data = processed_award_data['complete_data']
+                    if any([x not in opts.db.documented_awards for x in complete_award_data.keys()]):
+                        opts.db.update_documented_awards(
+                            {k:v for k, v in complete_award_data.items() if k not in opts.db.documented_awards}
+                        )
+                    comment_awards[comment.id] = award_data
         except Forbidden:
             print(user.name)
             print('forbidden comment history for some reason')
 
             
-
         #get submission history
         post_history = user.submissions.new(limit=opts.user_thread_limit)
         threads = {}
 
-        
+
         try:
             for i, post in enumerate(post_history):
                 threads.update(get_thread_data(post, opts, mode='minimal'))
+                if opts.awards and False:
+                    award_data = post.all_awardings
+                    processed_award_data = process_award_data(award_data, key={'thread_id': str(post.id)})
+                    simple_award_data = processed_award_data['simple_data']
+                    complete_award_data = processed_award_data['complete_data']
+                    if any([x not in opts.db.documented_awards for x in complete_award_data.keys()]):
+                        opts.db.update_documented_awards(
+                            {k:v for k, v in complete_award_data.items() if k not in opts.db.documented_awards}
+                        )
+                    thread_awards[post.id] = award_data                
         except Forbidden:
             print(user.name)
             print('forbidden post history for some reason')
@@ -190,9 +249,14 @@ def get_user_data(user, opts, mode='thread'):
                 'timestamp':timestamp,
                 'timestamp_utc': ts_to_utc(timestamp)}
         data.update(extra_data)
-    return {'userdata':data,
-            'commentdata':comments,
-            'threaddata':threads}
+        
+    return {
+        'userdata':data,
+        'commentdata':comments,
+        'threaddata':threads,
+        #'thread_awards': thread_awards,
+        #'comment_awards': comment_awards,
+    }
 
 @retry_if_broken_connection
 def get_thread_data(thread, opts, mode='minimal'):
@@ -217,6 +281,21 @@ def get_thread_data(thread, opts, mode='minimal'):
         author_name = thread.author.name
 
     timestamp = datetime.now()
+
+    thread_awards = {}
+
+    if opts.awards and True:
+        award_data = thread.all_awardings
+        processed_award_data = process_award_data(award_data, key={'thread_id': str(thread.id)})
+        simple_award_data = processed_award_data['simple_data']
+        complete_award_data = processed_award_data['complete_data']
+        if any([x not in opts.db.documented_awards for x in complete_award_data.keys()]):
+            opts.db.update_documented_awards(
+                {k:v for k, v in complete_award_data.items() if k not in opts.db.documented_awards}
+            )
+        thread_awards = simple_award_data
+
+        
     data = {'id':thread.id,
             'title':thread.title,
             'subreddit':thread.subreddit.display_name,
@@ -252,13 +331,26 @@ def get_thread_data(thread, opts, mode='minimal'):
             'scrape_mode':mode,
             'timestamp':timestamp,
             'timestamp_utc': ts_to_utc(timestamp),
-            }
+            # boolean update columns
+            'is_video': thread.is_video,
+            'is_original_content': thread.is_original_content,
+            'is_reddit_media_domain': thread.is_reddit_media_domain,
+            'is_robot_indexable': thread.is_robot_indexable,
+            'is_meta': thread.is_meta,
+            'is_crosspostable': thread.is_crosspostable,
+            'locked': thread.locked,
+            'archived': thread.archived,
+            'contest_mode': thread.contest_mode,
+            
+            '_award_data': thread_awards,
+    }
     return {thread.id:data}
 
 @retry_if_broken_connection
 def get_comment_data(comment, opts, mode='minimal', author_id=None):
     #print('getting data for comment id %s' % comment.id)
     #data that requires pre-processing
+    comment_awards = {}
     try:
         edited = comment.edited
         if not edited:
@@ -283,6 +375,18 @@ def get_comment_data(comment, opts, mode='minimal', author_id=None):
         now = datetime.now()
                              
         subreddit_id = None
+        
+        if opts.awards and True:
+            award_data = comment.all_awardings
+            processed_award_data = process_award_data(award_data, key={'comment_id': str(comment.id)})
+            simple_award_data = processed_award_data['simple_data']
+            complete_award_data = processed_award_data['complete_data']
+            if any([x not in opts.db.documented_awards for x in complete_award_data.keys()]):
+                opts.db.update_documented_awards(
+                    {k:v for k, v in complete_award_data.items() if k not in opts.db.documented_awards}
+                )
+            comment_awards = simple_award_data
+            
         data = {'id':comment.id,
                 'author_name':author_name,
                 'author_id':author_id,
@@ -307,8 +411,10 @@ def get_comment_data(comment, opts, mode='minimal', author_id=None):
                 'thread_begin_timestamp':None,
                 'scrape_mode':mode,
                 'timestamp':now,
-                'timestamp_utc': ts_to_utc(now)
-                }
+                'timestamp_utc': ts_to_utc(now),
+                'controversiality': comment.controversiality,
+            '_award_data': comment_awards,                
+        }
     except NotFound:
         print('comment deleted before cacheable (shouldn\'t happen)')
         return {}

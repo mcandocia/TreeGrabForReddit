@@ -14,6 +14,10 @@ import sys
 seconds_to_days = 1./(3600 * 24)
 
 def write_user(data, opts):
+    if opts.trophies:
+        trophy_data = data.pop('_trophy', {})
+        opts.db.write_trophy_data(trophy_data)
+        
     history_mode = 'users' in opts.history
     db = opts.db
     #check if user in database
@@ -42,7 +46,7 @@ def write_user(data, opts):
                 db.update_user(data)
     except:
         print(sys.exc_info())
-        print(data)
+        #print(data)
         db.insert_user(data)
     db.commit()
     return True
@@ -72,7 +76,7 @@ def write_thread(data, opts):
                 return False
     except:
         print(sys.exc_info())
-        print(data)
+        #print(data)
         db.insert_thread(data)
     db.commit()
     return True
@@ -105,7 +109,7 @@ def write_comment(data, opts):
                 #print('updating...')
                 db.update_comment(data)
     except TypeError:
-        print(data)
+        #print(data)
         print(sys.exc_info())
         db.insert_comment(data)
     db.commit()

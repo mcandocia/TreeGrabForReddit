@@ -52,6 +52,8 @@ class Database(object):
             connect_only=False,
             cursor_name = None,
             check_index_mode=None,
+            check_awards=False,
+            check_trophies=False
     ):
         #initialize connection
         # note: if cursor_name is defined, using this class will be more memory-efficient
@@ -63,6 +65,11 @@ class Database(object):
 
         self.conn = psycopg2.connect(database=database, user=username, host=host, port=port,
                                      password=password)
+
+        self.check_trophies = check_trophies
+        self.check_awards = check_awards
+
+        self.documented_awards = set()
 
         if cursor_name is None:
             self.cur = self.conn.cursor()
@@ -135,7 +142,16 @@ class Database(object):
             in_contest_mode BOOLEAN,
             scrape_mode VARCHAR(10),--'thread|list|profile|minimal'
             timestamp TIMESTAMP,
-            timestamp_utc TIMESTAMP
+            timestamp_utc TIMESTAMP,
+            is_video BOOLEAN,
+            is_original_content BOOLEAN,
+            is_reddit_media_domain BOOLEAN,
+            is_robot_indexable BOOLEAN,
+            is_meta BOOLEAN,
+            is_crosspostable BOOLEAN,
+            locked BOOLEAN,
+            archived BOOLEAN,
+            contest_mode BOOLEAN
             );""" % self.schema)
             '''self.execute("""CREATE INDEX IF NOT EXISTS %s.%s ON %s.threads 
                 USING id TABLESPACE %s;""" % (self.schema,'thread_id_index',
@@ -179,7 +195,16 @@ class Database(object):
             domain TEXT,
             scrape_mode VARCHAR(10),--'thread|list|profile|minimal'
             timestamp TIMESTAMP,
-            timestamp_utc TIMESTAMP
+            timestamp_utc TIMESTAMP,
+            is_video BOOLEAN,
+            is_original_content BOOLEAN,
+            is_reddit_media_domain BOOLEAN,
+            is_robot_indexable BOOLEAN,
+            is_meta BOOLEAN,
+            is_crosspostable BOOLEAN,
+            locked BOOLEAN,
+            archived BOOLEAN,
+            contest_mode BOOLEAN
             );""" % self.schema)
 
         if not self.silence:
@@ -274,7 +299,8 @@ class Database(object):
             thread_begin_timestamp TIMESTAMP,
             scrape_mode VARCHAR(10),--'sub|minimal'
             timestamp TIMESTAMP,
-            timestamp_utc TIMESTAMP
+            timestamp_utc TIMESTAMP,
+            controversiality SMALLINT
             );""" % self.schema)
             '''self.execute("""CREATE INDEX IF NOT EXISTS %s.%s ON %s.comments 
             USING id TABLESPACE %s;""" % (self.schema,'comment_id_index'
@@ -305,7 +331,8 @@ class Database(object):
             thread_begin_timestamp TIMESTAMP,
             scrape_mode VARCHAR(10),--'sub|minimal'
             timestamp TIMESTAMP,
-            timestamp_utc TIMESTAMP
+            timestamp_utc TIMESTAMP,
+            controversiality SMALLINT
             );""" % self.schema)
         self.make_subreddit_table(unique_ids)
         if not self.silence:
@@ -317,11 +344,16 @@ class Database(object):
         self.create_traffic_table()
         self.create_related_subreddits_table()
         self.create_wiki_table()
+        self.create_awards_tables()
+        self.create_trophies_tables()
+        self.add_controversial_to_existing_tables()
         self.commit()
         if not self.silence:
             print('committed initial config')
         #create indexes
         #hold off for now
+
+        return None
 
     # use this to set/reset cursor name
     # may be useful for very large queries
@@ -371,6 +403,10 @@ class Database(object):
             
 
     def insert_user(self, data):
+        if '_trophies' in data:
+            trophy_data = data.pop('_trophies')
+            self.write_trophy_data(trophy_data)
+            
         cols = data.keys()
         values = [data[key] for key in cols]
         statement = ('INSERT INTO %s' % self.schema) + '.users(%s) values %s;'
@@ -464,6 +500,10 @@ class Database(object):
 
 
     def insert_thread(self, data):
+        if '_award_data' in data:
+            awards = data.pop('_award_data', {})
+            if awards:
+                self.insert_thread_awards(awards)
         #print data
         cols = data.keys()
         values = [data[key] for key in cols]
@@ -472,7 +512,11 @@ class Database(object):
         self.execute(parsed_statement)
 
     def update_thread(self, data):
-        cols = data.keys()
+        if '_award_data' in data:
+            awards = data.pop('_award_data', {})
+            if awards:
+                self.insert_thread_awards(awards)
+        cols = data.keys()                
         values = [data[key] for key in cols]
         statement = ('UPDATE %s' % self.schema) + '.threads SET ' + make_update_template(values) + \
                     ' WHERE id=\'%s\'' % data['id']
@@ -480,6 +524,10 @@ class Database(object):
 
 
     def insert_comment(self, data):
+        if '_award_data' in data:
+            awards = data.pop('_award_data', {})
+            if awards:
+                self.insert_comment_awards(awards)
         #print data
         cols = data.keys()
         values = [data[key] for key in cols]
@@ -488,6 +536,10 @@ class Database(object):
         self.execute(parsed_statement)
 
     def update_comment(self, data):
+        if '_award_data' in data:
+            awards = data.pop('_award_data', {})
+            if awards:
+                self.insert_comment_awards(awards)
         cols = data.keys()
         values = [data[key] for key in cols]
 
@@ -520,6 +572,52 @@ class Database(object):
                                     data['time']))
         result = self.fetchall()[0][0]
         return result is not None
+
+    def insert_thread_awards(self, awards):
+        if len(awards) == 0:
+            return
+
+        keys = list(awards[0].keys())
+        BASE_TEMPLATE = """
+        INSERT INTO {schema}.thread_awards({columns}) VALUES({qm_template})
+        ON CONFLICT(thread_id, award_name) DO UPDATE SET award_count = excluded.award_count
+        """.format(
+            schema=self.schema,
+            columns = ','.join(keys),
+            qm_template = ','.join([' %s '] * len(keys))
+        )
+
+        for rowdict in awards:
+            row = [rowdict[k] for k in keys]            
+            self.execute(
+                BASE_TEMPLATE,
+                row
+            )
+        self.commit()
+
+
+    def insert_comment_awards(self, awards):
+        if len(awards) == 0:
+            return
+
+        keys = list(awards[0].keys())
+        BASE_TEMPLATE = """
+        INSERT INTO {schema}.comment_awards({columns}) VALUES({qm_template})
+        ON CONFLICT(comment_id, award_name) DO UPDATE SET award_count = excluded.award_count
+        """.format(
+            schema=self.schema,
+            columns = ','.join(keys),
+            qm_template = ','.join([' %s '] * len(keys))
+        )
+
+        for rowdict in awards:
+            row = [rowdict[k] for k in keys]
+            self.execute(
+                BASE_TEMPLATE,
+                row
+            )
+        self.commit()        
+
 
     def insert_traffic(self, data):
         #print data
@@ -593,6 +691,11 @@ class Database(object):
         self.execute("DROP TABLE IF EXISTS %s.traffic;" % self.schema)
         self.execute("DROP TABLE IF EXISTS %s.related_subreddits;" % self.schema)
         self.execute("DROP TABLE IF EXISTS %s.wikis;" % self.schema)
+        self.execute("DROP TABLE IF EXISTS %s.trophies" % self.schema)
+        self.execute("DROP TABLE IF EXISTS %s.awards" % self.schema)
+        self.execute("DROP TABLE IF EXISTS %s.user_awards" % self.schema)
+        self.execute("DROP TABLE IF EXISTS %s.comment_awards" % self.schema)
+        self.execute("DROP TABLE IF EXISTS %s.thread_awards" % self.schema)
         if not exclude_schema:
             self.execute("DROP SCHEMA %s;" % self.schema)
             print('dropped schema %s' % self.schema)
@@ -721,6 +824,137 @@ class Database(object):
         timestamp TIMESTAMP,
         timestamp_utc TIMESTAMP)""" % self.schema)
 
+    def create_awards_tables(self):
+        self.execute(
+            """
+            CREATE TABLE IF NOT EXISTS %s.awards(
+                name VARCHAR(64),
+                coin_price INTEGER,
+                description TEXT,
+                coin_reward INTEGER,
+                giver_coin_reward INTEGER,
+                subreddit_coin_reward INTEGER,
+                days_of_premium INTEGER,
+                award_type VARCHAR(32),
+                award_sub_type VARCHAR(32),
+                subreddit_id VARCHAR(16),
+                awardings_required_to_grant_benefits INTEGER,
+                days_of_drip_extension INTEGER,
+                static_icon_url TEXT
+            )
+
+            """ % self.schema
+        )
+        
+        self.execute(
+            """
+            CREATE TABLE IF NOT EXISTS %s.user_awards(
+            username VARCHAR(40),
+            award_name VARCHAR(64),
+            award_count INTEGER,
+
+            PRIMARY KEY (username, award_name)
+            )
+
+            """ % self.schema
+        )
+
+        self.execute(
+            """
+            CREATE TABLE IF NOT EXISTS %s.thread_awards(
+            thread_id VARCHAR(9),
+            award_name VARCHAR(64),
+            award_count INTEGER,
+
+            PRIMARY KEY (thread_id, award_name)
+            )
+
+            """ % self.schema
+        )
+
+        self.execute(
+            """
+            CREATE TABLE IF NOT EXISTS %s.comment_awards(
+            comment_id VARCHAR(9),
+            award_name VARCHAR(64),
+            award_count INTEGER,
+
+            PRIMARY KEY (comment_id, award_name)
+            )
+
+            """ % self.schema
+        )
+
+        # update documented awards
+        self.execute("SELECT name FROM %s.awards" % self.schema)
+        self.documented_awards.update([x[0] for x in self.fetchall()])
+        if not self.silence:
+            print('Established awards tables, with %s awards currently present' % len(self.documented_awards))
+
+
+    def create_trophies_tables(self):
+        self.execute(
+            """
+            CREATE TABLE IF NOT EXISTS {schema}.trophies(
+                trophy_name VARCHAR(128),
+                username VARCHAR(64),
+                granted_at TIMESTAMP,
+                granted_at_utc TIMESTAMP,
+
+            PRIMARY KEY (trophy_name, username)
+            )
+
+            """.format(schema = self.schema)
+        )
+        self.commit()
+
+    def write_trophy_data(self, trophy_data):
+
+        for trophy in trophy_data:
+            self.execute("""
+            INSERT INTO {schema}.trophies(
+                trophy_name, 
+                username,
+                granted_at,
+                granted_at_utc
+            ) VALUES(%s , %s , %s , %s)
+            ON CONFLICT DO NOTHING
+            """.format(schema=self.schema), trophy)
+        self.commit()
+
+    def update_documented_awards(self, award_data):
+        if len(award_data) == 0:
+            return 0
+
+        #print(award_data)
+        #exit()
+
+        keys = list(list(award_data.values())[0].keys())
+        value_list = [
+            [x[key] for key in keys]
+            for x in award_data.values()
+        ]
+
+        TEMPLATE = """INSERT INTO {schema}.awards({values_columns}) VALUES ({qm_template});""".format(
+            schema=self.schema,
+            values_columns = ','.join(keys),
+            qm_template = ','.join([' %s '] * len(keys))
+        )
+
+        cnt = 0
+
+        for v in value_list:
+            if v[keys.index('name')] not in self.documented_awards:
+                cnt += 1
+                self.execute(TEMPLATE, v)
+                self.commit()
+                self.documented_awards.add(v[keys.index('name')])
+                if not self.silence:
+                    print('Added %s to documented awards' % v[keys.index('name')])
+
+        return cnt
+        
+
     def add_utc_columns_to_existing_tables(self, verbose=False):
         # this function is just a table-alterer so that users with older tables don't have to go in and manually adjust them
         print('ensuring tables have utc columns')
@@ -784,6 +1018,44 @@ class Database(object):
             self.rollback()
             if verbose:
                 print(e)
+
+    # also adds more bool columns to thread table
+    def add_controversial_to_existing_tables(self, verbose=False):
+        for table, cols in [
+                ('comments', ['controversiality']),
+                ('threads', [
+                    'is_video',
+                    'is_original_content',
+                    'is_reddit_media_domain',
+                    'is_robot_indexable',
+                    'is_meta',
+                    'is_crosspostable',
+                    'locked',
+                    'archived',
+                    'contest_mode' 
+                ]
+                )
+        ]:
+            for colname in cols:
+                if table == 'threads':
+                    dtype = 'BOOLEAN'
+                else:
+                    dtype = 'SMALLINT'
+                try:
+                    query = 'ALTER TABLE {schema}.{tablename} ADD COLUMN {column} {coltype}'.format(
+                        schema=self.schema,
+                        tablename=table,
+                        column=col,
+                        coltype=dtype
+                    )
+                    self.execute(query)
+                    self.commit()
+                except Exception as e:
+                    self.rollback()
+                    if verbose:
+                        print(e)
+                        
+        return 0
                     
 
     # extra function that can be used to optimize queries summarizing data with subreddits and users

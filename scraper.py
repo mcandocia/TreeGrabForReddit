@@ -167,7 +167,7 @@ def filter_users(opts):
 @clean_keyboardinterrupt
 def main(args):
     opts = options()
-    reddit_scraper = scraper()
+    reddit_scraper = scraper(token=opts.token)
     #parse users
     if opts.resample_users_from_schema:
         original_schema = opts.resample_users_from_schema
@@ -547,6 +547,25 @@ class options(object):
             action='store_true',
             help='Stop script if cannot get any more entries from a subreddit'
         )
+
+        parser.add_argument(
+            '--awards',
+            action='store_true',
+            help='Record user/comment/submission awardings'
+        )
+
+        parser.add_argument(
+            '--trophies',
+            action='store_true',
+            help='Record trophies of users'
+        )
+
+        parser.add_argument(
+            '--token',
+            required=False,
+            default=None,
+            help='2FA token'
+        )
             
                             
         args = parser.parse_args()
@@ -612,7 +631,9 @@ class options(object):
             self.history = args.history
         #simple arguments
         # yes, I know this is a bad way of doing it; I'll probably get around to refactoring it at some point.
+
         self.impose('age')
+        self.impose('token')
         self.impose('resample_users_from_schema')
         self.impose('resampling_age_range')
         self.impose('mincomments')
@@ -652,7 +673,7 @@ class options(object):
                      'scrape_moderators','scrape_subreddits','scrape_subreddits_in_db',
                      'repeat_subreddit_scraping','use_subreddit_table_for_moderators',
                      'rescrape_subreddits','scrape_related_subreddits','scrape_wikis',
-                     'scrape_traffic', 'user_gildings', 'scrape_gilded']:
+                     'scrape_traffic', 'user_gildings', 'scrape_gilded','awards','trophies']:
             setattr(self, elem, handle_boolean(self, args, elem))
         self.impose('N')
         self.dictionary_time = datetime.datetime.utcnow()
@@ -667,7 +688,7 @@ class options(object):
         if self.history is None:
             self.history = []
         self.histories = {txt:txt not in self.history for txt in ['threads','comments','users']}
-        self.db = db.Database(self.name, self.histories)
+        self.db = db.Database(self.name, self.histories, check_awards = True, check_trophies = True)
 
         # sort of auto-migration
         # postgres 10 has IF EXISTS and IF NOT EXISTS for ALTER TABLE, but I'm assuming not everyone uses

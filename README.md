@@ -52,6 +52,16 @@ There are some optional requirements if you want to use some of the extra script
  * pandas
  * xgboost
 
+# New Features
+
+## 2020-02-12
+
+ * Awards and trophies can be scraped with `--awards` and `--trophies`
+
+ * controversiality column added to comments
+
+ * several boolean values added to threads table
+
 
 # General Guidelines
 
@@ -82,3 +92,5 @@ There are some optional requirements if you want to use some of the extra script
 * The number of deleted comments in a thread is a bit buggy due to the way it's tracked. However, you can check to see how many empty author IDs/comments exist in a thread using SQL.
 
 * If you discover any other bugs (unrelated to stdout output prettiness), please open a [new issue](https://github.com/mcandocia/TreeGrabForReddit/issues).
+
+
