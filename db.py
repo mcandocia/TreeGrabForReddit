@@ -840,7 +840,8 @@ class Database(object):
                 subreddit_id VARCHAR(16),
                 awardings_required_to_grant_benefits INTEGER,
                 days_of_drip_extension INTEGER,
-                static_icon_url TEXT
+                static_icon_url TEXT,
+                UNIQUE (name, subreddit_id)
             )
 
             """ % self.schema
@@ -851,6 +852,7 @@ class Database(object):
             CREATE TABLE IF NOT EXISTS %s.user_awards(
             username VARCHAR(40),
             award_name VARCHAR(64),
+            subreddit_id VARCHAR(10),
             award_count INTEGER,
 
             PRIMARY KEY (username, award_name)
@@ -863,6 +865,7 @@ class Database(object):
             """
             CREATE TABLE IF NOT EXISTS %s.thread_awards(
             thread_id VARCHAR(9),
+            subreddit_id VARCHAR(10),
             award_name VARCHAR(64),
             award_count INTEGER,
 
@@ -878,7 +881,7 @@ class Database(object):
             comment_id VARCHAR(9),
             award_name VARCHAR(64),
             award_count INTEGER,
-
+            subreddit_id VARCHAR(10),
             PRIMARY KEY (comment_id, award_name)
             )
 
@@ -886,8 +889,8 @@ class Database(object):
         )
 
         # update documented awards
-        self.execute("SELECT name FROM %s.awards" % self.schema)
-        self.documented_awards.update([x[0] for x in self.fetchall()])
+        self.execute("SELECT name, subreddit_id FROM %s.awards" % self.schema)
+        self.documented_awards.update([(x[0], x[1]) for x in self.fetchall()])
         if not self.silence:
             print('Established awards tables, with %s awards currently present' % len(self.documented_awards))
 
@@ -944,13 +947,16 @@ class Database(object):
         cnt = 0
 
         for v in value_list:
-            if v[keys.index('name')] not in self.documented_awards:
+            if (v[keys.index('name')], v[keys.index('subreddit_id')]) not in self.documented_awards:
                 cnt += 1
                 self.execute(TEMPLATE, v)
                 self.commit()
-                self.documented_awards.add(v[keys.index('name')])
+                self.documented_awards.add((v[keys.index('name')], v[keys.index('subreddit_id')]))
                 if not self.silence:
                     print('Added %s to documented awards' % v[keys.index('name')])
+                    subreddit_id = v[keys.index('subreddit_id')]
+                    if subreddit_id is not None:
+                        print('(subreddit ID = %s)' % subreddit_id)
 
         return cnt
         

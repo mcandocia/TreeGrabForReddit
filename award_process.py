@@ -2,6 +2,7 @@ def process_award_data(award_data, key={}):
     simple_data = [
         {
             'award_name': x['name'],
+            'subreddit_id': x['subreddit_id'],
             'award_count': x['count']
         }
         for x in award_data
@@ -11,7 +12,7 @@ def process_award_data(award_data, key={}):
     [x.update(key) for x in simple_data]
 
     complete_data = {
-        x['name']: {
+        (x['name'], x['subreddit_id']): {
             field:x[field]
             for field in [
                     'name',

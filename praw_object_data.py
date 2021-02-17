@@ -146,6 +146,8 @@ def get_user_data(user, opts, mode='thread'):
 
         if opts.trophies:
             try:
+                #print(user.name)                
+                #print(dir(user))
                 user_trophies = user.trophies()
                 
                 trophy_data.extend([
@@ -159,6 +161,8 @@ def get_user_data(user, opts, mode='thread'):
                     for t in user_trophies
                 ]
                 )
+                if len(user_trophies) == 0 and opts.verbose:
+                    print('No Trophies found for %s' % user.name)
                 data['_trophies'] = trophy_data
 
             except Exception as e:
