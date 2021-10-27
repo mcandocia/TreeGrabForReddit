@@ -33,6 +33,8 @@ from praw_user import scraper
 
 from user_scrape import scrape_user
 from thread_process import process_thread
+from praw_object_data import get_comment_data
+from writer import write_comment
 from moderator_scrape import scrape_moderators
 from subreddit_scrape import scrape_subreddits
 from new_users import get_new_users
@@ -60,11 +62,16 @@ LOCAL_TIMEZONE = get_localzone()
 logging = False
 logopts = None
 
+def chunks(l, n):
+    """Yield successive n-sized chunks from l."""
+    for i in range(0, len(l), n):
+        yield l[i:i + n]
+
 def clean_keyboardinterrupt(f):
     def func(*args, **kwargs):
         try:
             return f(*args, **kwargs)
-        except KeyboardInterrupt:
+        except KeyboardInterrupt as e:
             print('exiting via keyboard interrupt')
             if logging:
                 print('making log')
@@ -193,16 +200,33 @@ def main(args):
         random.shuffle(opts.ids)
     elif opts.unordered and len(opts.ids) > 1:
         random.shuffle(opts.ids)
+        random.shuffle(opts.comment_ids)
     if len(opts.users) > 0:
         opts.user_comment_limit = opts.old_user_comment_limit
         opts.user_thread_limit = opts.old_user_thread_limit
     #parse thread ids
     print('pattern:', opts.pattern)
 
-    for i, thread_id in enumerate(opts.ids):
-        process_thread(thread_id, opts, reddit_scraper)
-        if opts.N != -1 and i>= opts.N:
-            break
+    if not opts.thread_batch_mode:
+        #print('n thread ids: %s' % len(opts.ids))
+        for i, thread_id in enumerate(opts.ids):
+            process_thread(thread_id, opts, reddit_scraper)
+            if opts.N != -1 and i>= opts.N:
+                break
+    else:
+        id_batches = chunks(['t3_' + id for id in opts.ids], 100)
+        cnt = 0
+        for i, id_batch in enumerate(id_batches):
+            print('THREAD ID BATCH #%s' % (i+1))
+            threads = reddit_scraper.info(id_batch)
+            for j, thread in enumerate(threads):
+                process_thread(thread, opts, reddit_scraper)
+                cnt += 1
+                if opts.N != -1 and cnt >= opts.N:
+                    break
+            if opts.N != -1 and cnt >= opts.N:
+                break
+            
     if len(opts.ids) > 0:
         counter = i+1
         print('finished with supplied thread ids')
@@ -210,6 +234,43 @@ def main(args):
         print('---------------------------------')
         counter = 0
 
+    # comment scraping
+    if not opts.comment_batch_mode:
+        print('Currently only supporting batch mode for comment scraping')
+        
+    if True:
+        id_batches = chunks(['t1_' + id for id in opts.comment_ids], 100)
+        cnt = 0
+        for i, id_batch in enumerate(id_batches):
+            print('COMMENT ID BATCH #%s' % (i+1))
+            comments = reddit_scraper.info(id_batch)
+            n_bad = 0
+            for j, comment in enumerate(comments):
+                if comment is None:
+                    print('Skipping comment %s' % comment.id)
+                try:
+                    comment_data = get_comment_data(comment, opts, mode='direct', scraper=reddit_scraper)
+                except AttributeError as e:
+                    comment_data = {}
+                if len(comment_data) == 0:
+                    #print('COULD NOT FIND COMMENT DATA FOR ID %s!!!' % comment.id)
+                    n_bad += 1
+                else:
+                    cnt += 1
+                    write_comment(comment_data[comment.id], opts)
+                if opts.N != -1 and cnt >= opts.N:
+                    break
+            if n_bad > 0:
+                print('Total bad in batch = %s' % n_bad)
+            if opts.N != -1 and cnt >= opts.N:
+                break
+            
+    if len(opts.comment_ids) > 0:
+        counter = i+counter
+        print('finished with supplied thread ids')
+
+    
+    # user scraping
     if opts.new_user_scrape_mode:
         print('Entering new user scrape mode. Beginning counter.')
         new_user_set = set()
@@ -309,6 +370,12 @@ class options(object):
         parser.add_argument('-fs','--f-subreddits', dest='f_subreddits', nargs='+',
                             help='a list of filenames with line-separated subreddit names to be '\
                             ' added to a list of subreddits that will be scraped on a rotation')
+
+        parser.add_argument('--c-ids', '--comments', dest='comment_ids', nargs='+',
+                            help='A list of comment IDs to scrape')
+        parser.add_argument('-fc','--f-comment-ids', dest='f_comment_ids', nargs='+',
+                            help='a list of filenames with line-separated comment IDs to be scraped')
+        
         parser.add_argument('-u','--users', dest='users', nargs='+',
                             help='A list of users to search through')
         parser.add_argument('--man-user-comment-limit',dest='man_user_comment_limit',type=int,
@@ -566,6 +633,36 @@ class options(object):
             default=None,
             help='2FA token'
         )
+
+        parser.add_argument(
+            '--count-duplicates',
+            action='store_true',
+            help='Count duplicates in threads (takes extra time)'
+        )
+
+        parser.add_argument(
+            '--filter-existing-threads',
+            action='store_true',
+            help='Filters out thread IDs if they already exist in the data'
+        )
+
+        parser.add_argument(
+            '--filter-existing-comments',
+            action='store_true',
+            help='Filters out thread IDs if they already exist in the data'
+        )        
+
+        parser.add_argument(
+            '--thread-batch-mode',
+            action='store_true',
+            help='If not collecting extra comment/author info, expedites thread scraping significantly when IDs supplied.'
+        )
+
+        parser.add_argument(
+            '--comment-batch-mode',
+            action='store_true',
+            help='If not collecting extra author info, expedites comment scraping significantly when IDs supplied.'
+        )        
             
                             
         args = parser.parse_args()
@@ -588,6 +685,7 @@ class options(object):
                 self.pattern = [int(p) for p in args.pattern[1:]]
             else:
                 self.pattern = [int(p) for p in args.pattern]
+
         #add to subreddit list
         if args.subreddits is not None:
             self.subreddits=args.subreddits
@@ -610,6 +708,17 @@ class options(object):
         elif hasattr(self, 'f_ids'):
             for fn in self.f_ids:
                 self.ids += extract_lines(fn)
+
+        # add to comment id list
+        if args.comment_ids is not None:
+            self.comment_ids = args.comment_ids
+        elif not hasattr(self, 'comment_ids'):
+            self.comment_ids = []
+
+        if args.f_comment_ids is not None:
+            for fn in args.f_comment_ids:
+                self.comment_ids += extract_lines(fn)
+                
         #add to user list
         if args.users is not None:
             self.users = args.users
@@ -673,7 +782,9 @@ class options(object):
                      'scrape_moderators','scrape_subreddits','scrape_subreddits_in_db',
                      'repeat_subreddit_scraping','use_subreddit_table_for_moderators',
                      'rescrape_subreddits','scrape_related_subreddits','scrape_wikis',
-                     'scrape_traffic', 'user_gildings', 'scrape_gilded','awards','trophies']:
+                     'scrape_traffic', 'user_gildings', 'scrape_gilded','awards'
+                     ,'trophies','count_duplicates','filter_existing_threads','thread_batch_mode',
+                     'comment_batch_mode','filter_existing_comments',]:
             setattr(self, elem, handle_boolean(self, args, elem))
         self.impose('N')
         self.dictionary_time = datetime.datetime.utcnow()
@@ -746,6 +857,34 @@ class options(object):
 
             scraper = getattr(module, self.alt_scraper_file[1])
             print('Loaded %s function as %s to act as scraper' % tuple(self.alt_scraper_file[::-1]))
+
+        if self.filter_existing_threads:
+            existing_thread_ids = self.db.get_all_thread_ids()
+            n_existing_thread_ids = len(existing_thread_ids)
+
+            n_original_thread_ids = len(self.ids)
+            self.ids = [x for x in self.ids if x not in existing_thread_ids]
+            n_filtered_thread_ids = len(self.ids)
+            sorted_existing_ids = sorted(list(existing_thread_ids))
+            print('THREAD ID FILTERING %s/%s kept, %s already in db' % (
+                n_filtered_thread_ids,
+                n_original_thread_ids,
+                n_existing_thread_ids,
+            ))
+
+        if self.filter_existing_comments:
+            existing_comment_ids = self.db.get_all_comment_ids()
+            n_existing_comment_ids = len(existing_comment_ids)
+
+            n_original_comment_ids = len(self.comment_ids)
+            self.comment_ids = [x for x in self.comment_ids if x not in existing_comment_ids]
+            n_filtered_comment_ids = len(self.comment_ids)
+            sorted_existing_ids = sorted(list(existing_comment_ids))
+            print('COMMENT ID FILTERING %s/%s kept, %s already in db' % (
+                n_filtered_comment_ids,
+                n_original_comment_ids,
+                n_existing_comment_ids,
+            ))            
 
         print('intialized database')
     

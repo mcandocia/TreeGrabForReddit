@@ -26,6 +26,12 @@ import time
 
 import pytz
 
+def remove_null(x):
+    if x is None:
+        return None
+    else:
+        return x.replace(chr(0), ' <NULL_CHARACTER_REPLACEMENT> ')
+
 def ts_to_utc(timestamp):
     try:
         return datetime.utcfromtimestamp(timestamp.timestamp())
@@ -107,6 +113,9 @@ def get_user_data(user, opts, mode='thread'):
                 'is_gold':user.is_gold,
                 'timestamp':timestamp,
                 'timestamp_utc': ts_to_utc(timestamp),
+                'is_employee': user.is_employee,
+                'awarder_karma': user.awarder_karma,
+                'awardee_karma': user.awardee_karma,
                 'verified': user.verified}
         if opts.user_gildings:
             if opts.verbose:
@@ -299,9 +308,13 @@ def get_thread_data(thread, opts, mode='minimal'):
             )
         thread_awards = simple_award_data
 
+    if opts.count_duplicates:
+        num_duplicates = thread.num_duplicates
+    else:
+        num_duplicates = None
         
     data = {'id':thread.id,
-            'title':thread.title,
+            'title':remove_null(thread.title),
             'subreddit':thread.subreddit.display_name,
             'subreddit_id':subreddit_id,
             'created':datetime.fromtimestamp(thread.created_utc),
@@ -325,8 +338,8 @@ def get_thread_data(thread, opts, mode='minimal'):
             'is_self':thread.is_self,
             'is_stickied':thread.stickied,
             'url':thread.url,
-            'self_text':thread.selftext,
-            'self_text_html':thread.selftext_html,
+            'self_text':remove_null(thread.selftext),
+            'self_text_html':remove_null(thread.selftext_html),
             'num_comments':thread.num_comments,
             'over_18':thread.over_18,
             'permalink':thread.permalink,
@@ -345,13 +358,19 @@ def get_thread_data(thread, opts, mode='minimal'):
             'locked': thread.locked,
             'archived': thread.archived,
             'contest_mode': thread.contest_mode,
+            'num_duplicates': num_duplicates,
+            'num_crossposts': thread.num_crossposts,
+            'author_flair_background_color': thread.author_flair_background_color,
+            'link_flair_background_color': thread.link_flair_background_color,
+            'author_flair_text_color': thread.author_flair_text_color,
+            'link_flair_text_color': thread.link_flair_text_color,            
             
             '_award_data': thread_awards,
     }
     return {thread.id:data}
 
 @retry_if_broken_connection
-def get_comment_data(comment, opts, mode='minimal', author_id=None):
+def get_comment_data(comment, opts, mode='minimal', author_id=None, scraper=None):
     #print('getting data for comment id %s' % comment.id)
     #data that requires pre-processing
     comment_awards = {}
@@ -366,12 +385,21 @@ def get_comment_data(comment, opts, mode='minimal', author_id=None):
         #main processing
         #for deleted comments
         author = comment.author
-        if author is None:
+        if author is None and mode != 'direct':
             author_id = None
             author_name = None
+        elif mode == 'direct':
+            author_id = None
+            try:
+                author_name = author.name
+            except AttributeError:
+                author_name = None
         else:
             author_id = author_id # author.id slows down the code gathering too much; join later
-            author_name = author.name
+            try:
+                author_name = author.name
+            except AttributeError:
+                author_name = None
         #too costly to grab this
         # somehow null bytes can find their way into reddit comments
         def remove_null(x):
@@ -417,6 +445,13 @@ def get_comment_data(comment, opts, mode='minimal', author_id=None):
                 'timestamp':now,
                 'timestamp_utc': ts_to_utc(now),
                 'controversiality': comment.controversiality,
+                'author_flair_background_color': comment.author_flair_background_color,
+                'author_flair_text_color': comment.author_flair_text_color,
+                'author_flair_text': comment.author_flair_text,
+                'author_flair_css_class': comment.author_flair_css_class,
+                'is_locked': comment.locked,
+                'is_submitter': comment.is_submitter,
+
             '_award_data': comment_awards,                
         }
     except NotFound:
